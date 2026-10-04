@@ -577,7 +577,7 @@ Left open: `tabs.onUpdated` is registered in every mode (no filter in Chrome), s
 `streamResourceContent` / `eventSourceMessageReceived` for BL's fetch SSE is unverified until B8.
 
 ### Lead after B5b — 2026-10-04 — 0eb449e
-Reviewed  (only id, path, videoId kept) and the on-demand lifecycle (detach in
-); full suite 411 passed. B5b used ~350k tokens. The secrets assertion covers the
+Reviewed `readRequest` (only id, path, videoId kept) and the on-demand lifecycle (detach in
+`finally`); full suite 411 passed. B5b used ~350k tokens. The secrets assertion covers the
 shared watcher in on-demand tests only: B8 must also check storage for the fake secrets
 after an always-attached capture.
