@@ -4,6 +4,7 @@ import { CAPTURE_PORT } from "../shared/messages";
 import { createSettingsStore } from "../shared/settings";
 import type { CaptureSummary } from "../shared/summary";
 import { createCaptureManager } from "./capture";
+import { createLyricsDownloads } from "./downloads";
 import { createMessageListener } from "./requests";
 import { createCaptureStore } from "./store";
 
@@ -15,8 +16,13 @@ console.log("[YTM Practice Grabber] service worker loaded");
 const store = createCaptureStore({ area: chrome.storage.session });
 const settings = createSettingsStore(chrome.storage.local);
 const captures = createCaptureManager({ debugger: chrome.debugger, tabs: chrome.tabs, store, settings, log: console });
+// Lyrics go where Chrome saves downloads; the downloadDirOverride option affects only the audio flow.
+const lyrics = createLyricsDownloads({ downloads: chrome.downloads, store, settings, extensionId: chrome.runtime.id, log: console });
 
-chrome.runtime.onMessage.addListener(createMessageListener({ store }));
+chrome.runtime.onMessage.addListener(createMessageListener({ store, downloadLyrics: lyrics.download }));
+// Learns Chrome's download folder when one of our lyrics downloads finishes. This wakes the worker
+// for every download in the browser; anything not ours returns at once.
+chrome.downloads.onChanged.addListener(lyrics.handleChanged);
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== CAPTURE_PORT) return;

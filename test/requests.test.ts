@@ -14,6 +14,9 @@ const ID = "Synth3t1cK1";
 const OTHER = "Other0ther0";
 const capture = (videoId: string): StoredCapture => ({ videoId, capturedAt: 1_700_000_000_000, metadata, rawStream: stream, unisonRaw: unison, bodySource: "getResponseBody" });
 
+/** For listeners whose test sends no lyrics:download. */
+const noDownloads = () => Promise.reject(new Error("not expected in this test"));
+
 async function setup() {
   const area = new FakeStorageArea();
   const store = createCaptureStore({ area });
@@ -62,7 +65,7 @@ describe("handleCaptureGet", () => {
 describe("createMessageListener", () => {
   it("answers capture:get asynchronously, keeping the channel open", async () => {
     const { store } = await setup();
-    const call = send(createMessageListener({ store }), { type: "capture:get", videoId: ID });
+    const call = send(createMessageListener({ store, downloadLyrics: noDownloads }), { type: "capture:get", videoId: ID });
     expect(call.kept).toBe(true);
     expect(await call.response()).toEqual({ summary: summarize(capture(ID), sources) });
     expect(call.sendResponse).toHaveBeenCalledTimes(1);
@@ -71,7 +74,7 @@ describe("createMessageListener", () => {
   it("does not answer a malformed request and never reads the store for it", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const get = vi.fn();
-    const listener = createMessageListener({ store: { get } });
+    const listener = createMessageListener({ store: { get }, downloadLyrics: noDownloads });
     for (const message of [{ type: "capture:get", videoId: "../../etc" }, { type: "capture:get" }, { type: "nope" }, "capture:get", null]) {
       const call = send(listener, message);
       expect(call.kept).toBe(false);
@@ -83,17 +86,47 @@ describe("createMessageListener", () => {
 
   it("answers with no capture when the store fails, so the sender is never left waiting", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const deps: RequestDeps = { store: { get: () => Promise.reject(new Error("storage gone")) } };
+    const deps: RequestDeps = { store: { get: () => Promise.reject(new Error("storage gone")) }, downloadLyrics: noDownloads };
     const call = send(createMessageListener(deps), { type: "capture:get", videoId: ID });
     expect(call.kept).toBe(true);
     expect(await call.response()).toEqual({ summary: null });
     expect(error).toHaveBeenCalled();
   });
 
-  it("answers lyrics:download with an error until B6 builds it", async () => {
+  it("hands lyrics:download to the downloader and answers with its result", async () => {
     const { store } = await setup();
-    const call = send(createMessageListener({ store }), { type: "lyrics:download", videoId: ID, itemId: "tony", stem: `x [${ID}]` });
+    const request = { type: "lyrics:download", videoId: ID, itemId: "native:golyrics", stem: `x [${ID}]` };
+    const downloadLyrics = vi.fn().mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false, error: "There is no nope source in this capture" });
+    const listener = createMessageListener({ store, downloadLyrics });
+    const call = send(listener, request);
     expect(call.kept).toBe(true);
-    expect(await call.response()).toEqual({ ok: false, error: expect.any(String) });
+    expect(await call.response()).toEqual({ ok: true });
+    expect(downloadLyrics).toHaveBeenCalledWith(request);
+    expect(await send(listener, { ...request, itemId: "native:nope" }).response()).toEqual({ ok: false, error: "There is no nope source in this capture" });
+  });
+
+  it("answers lyrics:download with the error when the downloader fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { store } = await setup();
+    const call = send(createMessageListener({ store, downloadLyrics: () => Promise.reject(new Error("storage gone")) }), {
+      type: "lyrics:download",
+      videoId: ID,
+      itemId: "tony",
+      stem: `x [${ID}]`,
+    });
+    expect(await call.response()).toEqual({ ok: false, error: "storage gone" });
+  });
+
+  it("does not answer lyrics:download for an item that is not a download, and never calls the downloader", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { store } = await setup();
+    const downloadLyrics = vi.fn();
+    const listener = createMessageListener({ store, downloadLyrics });
+    for (const itemId of ["showing", "recapture", "native:../x", ""]) {
+      const call = send(listener, { type: "lyrics:download", videoId: ID, itemId, stem: `x [${ID}]` });
+      expect(call.kept).toBe(false);
+    }
+    await Promise.resolve();
+    expect(downloadLyrics).not.toHaveBeenCalled();
   });
 });

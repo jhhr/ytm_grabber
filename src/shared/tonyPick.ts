@@ -156,9 +156,21 @@ function converted(source: LyricsSource, ctx: TonyContext, parse: () => TimedLin
 }
 
 function fileOf(source: LyricsSource, ctx: TonyContext, content: string, ext: TonyFile["ext"], isConverted: boolean): TonyFile {
-  const name = source.blDisplayName ?? source.id;
-  const label = `${name} \u{2014} ${TIMING_LABELS[source.timing]}${isConverted ? ", converted" : ""}`;
-  return { content, ext, filename: `${ctx.stem}${ext}`, timing: source.timing, converted: isConverted, label };
+  return { content, ext, filename: `${ctx.stem}${ext}`, timing: source.timing, converted: isConverted, label: tonyLabel(source, isConverted) };
+}
+
+/**
+ * The label of a source's Tony-ready file, e.g. "Musixmatch \u{2014} word timing, converted" (an
+ * em dash). Takes a source summary as well (the menu model has no contents).
+ */
+export function tonyLabel(source: Pick<LyricsSource, "id" | "blDisplayName" | "timing">, converted: boolean): string {
+  return `${source.blDisplayName ?? source.id} \u{2014} ${TIMING_LABELS[source.timing]}${converted ? ", converted" : ""}`;
+}
+
+/** Why there is no Tony pick, from pickForTony()'s `skipped` (the menu reads it from the capture summary). */
+export function noPickReason(skipped: readonly { sourceId: string; reason: string }[]): string {
+  if (skipped.length === 0) return "No captured lyrics have timing Tony can read";
+  return `No file Tony can read: ${skipped.map(({ sourceId, reason }) => `${sourceId}: ${reason}`).join("; ")}`;
 }
 
 /**

@@ -49,17 +49,18 @@ const DISPLAY_NAME_SOURCES: ReadonlyMap<string, readonly string[]> = new Map([
 /** Lyrics and captions BL takes from YouTube itself, never from the request we capture. */
 const YOUTUBE_NAMES: ReadonlySet<string> = new Set(["YouTube", "YouTube Captions"]);
 
-export type ShowingSources =
+export type ShowingSources<S = LyricsSource> =
   /** The capture's sources that BL shows under this name, best first; never empty. */
-  | { downloadable: true; sources: LyricsSource[] }
+  | { downloadable: true; sources: S[] }
   | { downloadable: false; why: "youtube" | "not-captured" | "unknown-name"; reason: string };
 
 /**
  * The captured sources behind the name `.blyrics-dock__source-name` shows (trimmed, exact case).
  * Not downloadable, with a reason for the menu: YouTube's own lyrics or captions, a known name
- * whose sources are not in this capture, and a name this map does not know.
+ * whose sources are not in this capture, and a name this map does not know. Works on sources
+ * and on their summaries (the menu model's input), which carry the same id and display name.
  */
-export function sourcesForDisplayName(displayName: string, sources: readonly LyricsSource[]): ShowingSources {
+export function sourcesForDisplayName<S extends Pick<LyricsSource, "id" | "blDisplayName">>(displayName: string, sources: readonly S[]): ShowingSources<S> {
   const name = displayName.trim();
   if (YOUTUBE_NAMES.has(name)) {
     return { downloadable: false, why: "youtube", reason: `${name} lyrics come from YouTube itself, not from the captured lyrics request` };

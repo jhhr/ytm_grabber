@@ -323,6 +323,8 @@ Edge cases to handle:
 - **Learn the download folder:** on `chrome.downloads.onChanged` → `complete` for our download, `chrome.downloads.search({ id })` → `item.filename` is the absolute path → store its directory (minus our subfolder) as `learnedDownloadDir`. The audio flow uses it so yt-dlp writes to the same folder Chrome uses. Overridable in options.
 - Option **per-song subfolder** (default off): `<stem>/<stem><ext>` for lyrics and `<downloadDir>\<stem>\` for audio. Useful with Tony, whose Import Lyrics dialog opens in the reference audio's folder: save the Moises stems into the same subfolder and the `.ttml` is right there.
 
+*(B6: `encodeURIComponent` throws on a lone surrogate, which captured JSON can carry, so the URL is `data:<mime>;charset=utf-8;base64,` + base64 of the `TextEncoder` bytes (UTF-8, no BOM; a lone surrogate becomes U+FFFD). The worker refuses a stem that `sanitizeFilename()` would change or that does not end with ` [videoId]`, rather than changing it. The relative path of each download is remembered in memory by download id (not across worker restarts); the folder is learned only from a completed download whose `byExtensionId` is ours and whose path ends with the folders we asked for. Lyrics always go to Chrome's download folder: `downloadDirOverride` is for audio only.)*
+
 ### 3.7 Audio button (`content/audioButton.ts`, `content/page-bridge.ts`)
 
 - **page-bridge (MAIN world):** listens for `pg:what-is-playing` on `document`, replies with a `pg:now-playing` CustomEvent whose `detail` is a JSON **string** (cross-world safe):
@@ -500,7 +502,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B4** QRC converter + `tonyPick.ts` + `blyrics.ts` [Phase 2b, rest] — Done 2026-10-04 (bcc8ce5)
 - **B5a** Messages + settings + capture store [Phase 3, part] — Done 2026-10-04 (69e9560)
 - **B5b** Capture manager, always-attached mode [Phase 3, rest] — Done 2026-10-04 (0eb449e)
-- **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part]
+- **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part] — Done 2026-10-04
 - **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part]
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest]
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible]

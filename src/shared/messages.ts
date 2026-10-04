@@ -8,6 +8,7 @@
 // summary, and the worker reads contents from its own store.
 
 import { isVideoId } from "./filenames";
+import { isDownloadItemId } from "./lyricsItems";
 import type { CaptureSummary } from "./summary";
 
 // --- One-shot requests: content script -> service worker -------------------------------------
@@ -22,7 +23,13 @@ export interface CaptureGetResponse {
   summary: CaptureSummary | null;
 }
 
-/** Save one menu item's file (B6). `stem` comes from YTM's now-playing info; the worker sanitises it again. */
+/**
+ * Save one lyrics menu item's file. `videoId` is the capture's (the summary's, which may not be
+ * the playing video's); `itemId` is a download item id (lyricsItems.ts: tony, native:<source>,
+ * ttml:<source>, raw); `stem` is buildStem()'s output for that video, from YTM's now-playing info
+ * (or the capture's metadata when the capture is of another song). The worker refuses a stem that
+ * sanitizeFilename() would change or that does not end with " [videoId]".
+ */
 export interface LyricsDownloadRequest {
   type: "lyrics:download";
   videoId: string;
@@ -70,7 +77,7 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
     case "capture:get":
       return isVideoIdValue(value.videoId);
     case "lyrics:download":
-      return isVideoIdValue(value.videoId) && isNonEmptyString(value.itemId) && isNonEmptyString(value.stem);
+      return isVideoIdValue(value.videoId) && isDownloadItemId(value.itemId) && isNonEmptyString(value.stem);
     default:
       return false;
   }

@@ -31,6 +31,17 @@ describe("isExtensionRequest", () => {
     }
   });
 
+  it("accepts only download item ids in lyrics:download (lyricsItems.ts grammar)", () => {
+    const good = { type: "lyrics:download", videoId: ID, stem: `x [${ID}]` };
+    for (const itemId of ["tony", "raw", "native:golyrics", "ttml:musixmatch-word", "native:new_provider"]) {
+      expect(isExtensionRequest({ ...good, itemId }), itemId).toBe(true);
+    }
+    // showing is resolved by the menu model and recapture is the content script's own action.
+    for (const itemId of ["showing", "recapture", "native:", "native:../x", "ttml:Golyrics", "golyrics", "note:other-song", "divider:1"]) {
+      expect(isExtensionRequest({ ...good, itemId }), itemId).toBe(false);
+    }
+  });
+
   it("refuses what is not a request", () => {
     for (const value of [null, undefined, "capture:get", 1, [], [{ type: "capture:get", videoId: ID }], { videoId: ID }, { type: "capture:start", videoId: ID }, { type: "CAPTURE:GET", videoId: ID }]) {
       expect(isExtensionRequest(value), JSON.stringify(value)).toBe(false);

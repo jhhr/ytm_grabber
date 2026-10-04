@@ -581,3 +581,27 @@ Reviewed `readRequest` (only id, path, videoId kept) and the on-demand lifecycle
 `finally`); full suite 411 passed. B5b used ~350k tokens. The secrets assertion covers the
 shared watcher in on-demand tests only: B8 must also check storage for the fake secrets
 after an always-attached capture.
+
+### B6 — 2026-10-04
+Built: `src/shared/lyricsItems.ts` (ids `tony`, `native:<id>`, `ttml:<id>`, `raw`, `showing`, `recapture`; `parseDownloadItemId`, `RAW_EXT`,
+`convertsToTtml`), `lyricsFiles.ts` (`lyricsFile(itemId, capture, stem)`, `stemProblem`, `titleFromStem`, `lyricsDownloadPath`, `dataUrlFor`),
+`downloadDir.ts` (`dirFromDownloadedPath`), `menuModel.ts` (`lyricsMenu({ summary, showingName, forPlayingVideo })` -> `MenuItem[]`);
+`src/background/downloads.ts` `createLyricsDownloads({ downloads, store, settings, extensionId, log? })` -> `download`, `handleChanged`; stub in
+`requests.ts` replaced (`RequestDeps.downloadLyrics`); `sw.ts` wires `downloads.onChanged`. `tonyPick.ts` exports `tonyLabel`, `noPickReason`;
+`sourcesForDisplayName` is generic (takes summaries). Fake `test/helpers/fakeDownloads.ts`; tests `lyricsItems`, `lyricsFiles`, `downloadDir`,
+`menuModel`, `downloads`; `messages`, `requests`, `sw` extended.
+Choices / deviations (PLAN 3.6 note):
+- Stem refused, not changed, unless `sanitizeFilename` leaves it as is and it ends ` [videoId]` (or is `[videoId]`) of the request's video.
+- The message guard refuses item ids outside the grammar (no reply, like a bad video id); a source not in the capture gets `{ ok: false, error }`.
+- "What's showing" = the best source under BL's name (also the one marked "(showing)"); disabled for another song's capture and when the
+  summary's `tonySkipped` lists that source (it fails the same with the real title); "-> TTML" items likewise. Unison richsync gets "-> TTML".
+  Details: Tony-style label for tony/showing, the file ext elsewhere. Non-action ids: `note:other-song`, `divider:1|2`, `header:other-sources`;
+  an enabled "what's showing" repeats another item's id. The other-song note is a disabled action (as specified), not a new kind.
+- Learned dir: relative path kept in memory per download id, marked in flight BEFORE `download()` (onChanged may beat the id; the fake fires it
+  inside the call); then `byExtensionId`; written only on change. Without the subfolder, a folder picked in a Save As dialog is learned too.
+The next phase must know:
+- B7b: send `lyrics:download { videoId: summary.videoId, itemId, stem }` for enabled actions except `recapture`; stem = `buildStem` for that
+  video (capture metadata when it is not the playing one). Reply `{ ok: true }` or `{ ok: false, error }` (a sentence).
+- B8: Chrome caps URLs at 2 MiB characters (`url::kMaxURLChars`); base64 makes a raw stream over ~1.5 MB a URL that long: check it saves.
+Left open: the menu's Tony label is the summary's (placeholder title); in the rare case where only the title pushes a converted pick over 1 MiB the
+download falls to the next candidate (tested) and the label is stale. A pick with `tonySkipped` entries shows no warning in the menu.
