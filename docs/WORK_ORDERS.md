@@ -707,3 +707,26 @@ The next phase must know:
 - Tests run in order in one browser and build on the first capture; `E2E_MENU_SCREENSHOT=<file.png>` keeps the menu screenshot.
 Left open: the mock dock's CSS approximates BL's; the floating anchor in YTM's real `#side-panel` is unverifiable here. The user's newer Chrome may behave differently: the 👤
 check of bodySource (debug log "using ...") stays. A real stream without `event: done` would fail as "cancelled" (BL's API sends it, per the user's capture).
+
+### B9 — 2026-10-04
+Built: `native-host/ytm_grabber_host.py` (stdlib, Python >= 3.8; framing, `ping`/`download`/`cancel`/`reveal`, per download a waiter + a reader per pipe, frames under one lock;
+`sanitize_filename` port), `config.example.json`, `install.ps1`, `uninstall.ps1 [-RemoveConfig]`, `test_host.py` (44 tests, ~2.5 s: real host over stdin/stdout + fake yt-dlp).
+`.gitignore`: generated `config.json`, `host.bat`, host manifest, `__pycache__/`. Real yt-dlp 2026.08.19 (scratch venv, local HTTP file, `-x` + ffmpeg, also driven by the real
+host): progress and the `after_move:filepath` line on **stdout**, warnings/`ERROR:` on stderr; last progress line printed twice; `  N/A%` without a size.
+Choices / deviations (PLAN 3.8 note):
+- yt-dlp runs `expandvars` over `-P` and `-o`'s literal text: `$NAME`/`${NAME}` in a title (Windows: `%NAME%` in a folder) become env values. The host runs the same
+  expansion and refuses a stem/subfolder it would change, falls back from such an `outputDir`, and checks the result is `<dir>/<stem>.<ext>`. Agrees with yt-dlp's
+  `prepare_filename` on 3,068 random names under POSIX and ntpath rules. Python port vs bundled `filenames.ts`: 20,000 random names, identical.
+- Stem refused unless a sanitize fixed point ending ` [videoId]` (as the SW). Cancel -> `error { message: "Cancelled", cancelled: true }`; exactly one done/error per
+  download; `cancel`/`reveal` reply only on failure; errors echo a valid `requestId`; `pong.problems: string[]` (config, yt-dlp, ffmpeg). Unknown requestId -> error.
+- Kill: Windows `taskkill /T /F` (full System32 path); POSIX own session, group SIGTERM then SIGKILL after 1 s. Children always get stdin DEVNULL.
+- Channel = dup of fd 1, then fd 1 -> stderr (or NUL) and `sys.stdout = sys.stderr`. Incoming cap 1 MiB (skipped in step); bodies ASCII (`ensure_ascii`), > 1 MiB -> error.
+- `reveal`: realpath+normcase `commonpath` vs folders of successful downloads; Windows runs ONE string `"<explorer>" /select,"<path>"` (list quoting would quote `/select,`).
+- host.bat stays ASCII: non-ASCII python.exe under the profile -> `%USERPROFILE%\...` (cmd expands it in Unicode); else OEM code page (registry OEMCP) with a round-trip
+  check, else a clear error. Not `chcp 65001`. PATH search via `Get-Command` (not `where.exe`); Python reports itself as JSON (ASCII). Registry via `Registry.SetValue`.
+- Config read per request; path settings get expandvars + expanduser; missing `extraArgs` = `["-x"]`; a `.bat`/`.cmd` ytDlpPath is refused (cmd.exe would parse titles).
+The next phase must know:
+- B10: `download { requestId, videoId, stem, outputDir?, subfolder? }`, stem = the lyrics stem; ignore messages for finished requestIds; port close kills downloads.
+- B11: copy the host script into a temp dir with its own `config.json` (read next to the script); `FAKE_YTDLP` in `test_host.py` is a ready fake.
+Left open: install.ps1/uninstall.ps1 never ran (no PowerShell): reviewed line by line, incl. a self-test ping through `cmd.exe /d /s /c host.bat`. Cancel leaves yt-dlp's
+`.part` (yt-dlp resumes it). Seeing the security tests fail with weakened checks was refused by the session's permission classifier; one non-security break shown.

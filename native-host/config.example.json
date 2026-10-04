@@ -1,0 +1,6 @@
+{
+  "ytDlpPath": "C:\\Tools\\yt-dlp.exe",
+  "ffmpegLocation": "C:\\Tools\\ffmpeg\\bin",
+  "extraArgs": ["-x"],
+  "fallbackOutputDir": "%USERPROFILE%\\Downloads"
+}

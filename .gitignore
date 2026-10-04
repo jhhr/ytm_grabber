@@ -5,3 +5,8 @@ keys/
 # Real captures with copyrighted lyrics, for local tests only.
 fixtures/local/*
 !fixtures/local/README.md
+# Written by native-host/install.ps1 for this machine (config.json holds local paths).
+native-host/config.json
+native-host/host.bat
+native-host/com.jormki.ytm_grabber.json
+__pycache__/

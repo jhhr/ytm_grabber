@@ -407,6 +407,8 @@ subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, text=True, encoding="utf-8",
 
 `--print` implies `--quiet`, hence `--progress` to keep progress lines. Read stdout line by line: `PG_PROGRESS` lines → `progress`; the last non-progress line → `done.path`. Keep the last ~20 stderr lines for `error.stderrTail`. Support `cancel` (terminate the process). Verify these flags in the spike.
 
+*(B9, yt-dlp 2026.08.19 against a local file, also with `-x` + ffmpeg: progress lines (`PG_PROGRESS  42.3%`; `  N/A%` without a size; the last one twice) and the `after_move:filepath` line come on **stdout**, warnings and `ERROR:` lines on stderr; with `-x` the path is the extracted file. **Doubling `%` is not enough:** yt-dlp runs `expandvars` over `-P` and over the literal text of `-o`, so `$NAME` / `${NAME}` in a title (and `%NAME%` in a Windows folder) would become an environment variable's value, possibly a path elsewhere; no escape works on Windows once a title has a `'`. The host refuses such a stem (refused, not changed, as the SW does), falls back from such an `outputDir`, and checks the file landed as `<dir>/<stem>.<ext>`. Protocol additions: `pong.problems` (readable reasons, e.g. yt-dlp not found), `error.cancelled: true`, a request's `requestId` echoed in its errors; `cancel` and `reveal` answer only on failure. `install.ps1` searches PATH with `Get-Command` rather than `where.exe`, whose output would pass through the console code page.)*
+
 ### 3.9 Options page
 
 - Capture mode: on-demand (default) / always attached
@@ -515,7 +517,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part] — Done 2026-10-04 (026d0d1)
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest] — Done 2026-10-04 (e2c61e3)
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible] — Done 2026-10-04 (ab29229)
-- **B9** Native host + installer scripts + host tests [Phase 5]
+- **B9** Native host + installer scripts + host tests [Phase 5] — Done 2026-10-04
 - **B10** Audio button + page bridge + SW audio relay [Phase 6]
 - **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part]
 - **B12** Documentation pass: README, `docs/spike-notes.md` 👤 checklist, this plan brought up to date [Phase 7, rest]
