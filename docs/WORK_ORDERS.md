@@ -540,3 +540,27 @@ The next phase must know:
 - B6: `store.get(videoId)` returns `sources` with contents; run `tonyReady`/`pickForTony` again with the real stem and title; replace the stub
   in `requests.ts`. Fake: `calls`, `writtenText()` (all set() input, for secret checks), `beforeSet`/`beforeRemove` hooks inject failures.
 Left open: a capture the index does not list (only after index corruption) is removed only when `get()` meets it.
+
+### B5b — 2026-10-04
+Built: `src/shared/blRequests.ts` (tracked requests, `videoId` from `postData` or `postDataEntries`, base64/UTF-8, `chooseBody` over the
+three paths, `sseFromEventSource`, `streamHasEnded`); `src/background/networkWatcher.ts` (one session's CDP events -> `CapturedStream` + Unison
+grace); `src/background/capture.ts` `createCaptureManager({ debugger, tabs, store, settings, log?, now?, timers? })` (bound `connect(port, tabId)`,
+`handleEvent`, `handleDetach`, `handleTabUpdated`, `settingsChanged`, `init()`, `captureNow`); `sw.ts` wiring + `globalThis.captureNow(tabId,
+videoId?)`. Helpers `fakeDebugger.ts` (Chrome's attach/detach errors, commands applied a microtask later, `data` only after `streamResourceContent`,
+BL request builders, `FAKE_TOKEN`/`FAKE_KEY_ID`), `fakePort.ts`, `captureHarness.ts`; tests `blRequests`, `capture`, `captureAlways`, `sw` (imports
+sw.ts under a stubbed `chrome`).
+Choices / deviations (also noted in PLAN 3.3):
+- Non-2xx stream is never the body. First 403 -> wait for BL's retry (a 403 older than 30 s does not count); any other failure, a second 403, or no
+  body on any path -> error at once unless another stream request runs. A 2xx stream cancelled after `event: done` counts as complete.
+- Grace: <= 2 s for Unison to appear, then <= 2 s from then to finish (4 s worst case). Unison paired by `v`; 404/other/failed = none;
+  body via getResponseBody only. 30 s from `start`; a stream in hand at 30 s or at a Chrome detach is kept. Detach comes before storing.
+- Stale session after an SW restart: attach fails, `Network.enable` via sendCommand succeeds -> ours, taken over. Start-up sweeps
+  `getTargets()`: detaches attached tabs with no live session (always mode keeps YTM tabs to take over). Detach only touches our own session.
+- Always mode: one watcher per tab across songs; `start` -> `ready` once attached, then the next stream (all waiting starts share it), 30 s.
+  -> on-demand closes those sessions and errors waiters; -> always attaches YTM tabs; a capture running at the switch finishes, then re-attaches.
+- Debug lines also name tab ids and lifecycle steps; never video ids, query strings or request/response text.
+The next phase must know:
+- B7b: `ready` can come at once (joined capture, always mode); reasons are user-readable sentences; `done.summary.videoId` may differ.
+- B8: `captureNow(tabId)` from the SW; `bodySource` is in the summary and the stored capture; `debugCapture` logs `using <path>`.
+Left open: `tabs.onUpdated` is registered in every mode (no filter in Chrome), so the SW wakes on every tab load. Whether Chrome feeds
+`streamResourceContent` / `eventSourceMessageReceived` for BL's fetch SSE is unverified until B8.

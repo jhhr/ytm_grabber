@@ -293,6 +293,8 @@ Edge cases to handle:
 - Capture metadata `videoId` ≠ the video now playing → keep it under its own videoId, tell the UI.
 - One capture per tab at a time; repeated clicks join the pending one.
 
+*(B5b, where this section is silent: a non-2xx stream response is never the body; after a first 403 the capture waits for BL's retry with a new token (BL retries once), and any other failure ends it with the HTTP status or Chrome's `net::` error, unless another stream request is still running. A 2xx stream cancelled after its `done` event counts as complete. Unison is paired with the stream by its `v` parameter; the grace is ≤ 2 s for a Unison request to appear, then ≤ 2 s from then for it to finish. A session left by an earlier service worker shows as attach failing while a `Network.enable` command succeeds (only the attaching extension can send commands): it is taken over; at start-up every attached tab from `debugger.getTargets()` without a live session is detached (in always mode, YouTube Music tabs are kept and taken over instead).)*
+
 **Infobar:** Chrome shows "*YTM Practice Grabber* started debugging this browser" while attached. On-demand mode keeps that to a few seconds. It can be suppressed entirely by starting Chrome with `--silent-debugger-extension-api` (add to the Chrome shortcut's target on Windows) — document this in the README.
 
 ### 3.4 Capture store (`background/store.ts`)
@@ -497,7 +499,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B3** `ttml.ts` writer + enhanced-LRC word converter + Tony-rules test reader [Phase 2b, part] — Done 2026-10-04 (4c5abd1)
 - **B4** QRC converter + `tonyPick.ts` + `blyrics.ts` [Phase 2b, rest] — Done 2026-10-04 (bcc8ce5)
 - **B5a** Messages + settings + capture store [Phase 3, part] — Done 2026-10-04 (69e9560)
-- **B5b** Capture manager, always-attached mode [Phase 3, rest]
+- **B5b** Capture manager, always-attached mode [Phase 3, rest] — Done 2026-10-04
 - **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part]
 - **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part]
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest]
