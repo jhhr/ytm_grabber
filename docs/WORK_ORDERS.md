@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B7a)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B7b)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -188,6 +188,12 @@ your work in the tree and list every file you created or changed in your report.
   `stemFor()` -> `{ stem }` | `{ stem: null, reason }`, `PLAYER_BAR_SELECTORS`
   unverified), `page-bridge.ts` + `src/shared/bridgeProtocol.ts` (JSON-string events).
   jsdom 29 (30 needs a newer Node). `test/helpers/blPage.ts` builds BL's dock in jsdom.
+- Content (B7b): `src/content/lyricsFlow.ts` (click -> `capture:get` or capture port ->
+  menu -> `lyrics:download`; seams injected), `menu.ts` (popover on `<body>`),
+  `toast.ts` (one toaster, created in `main.ts` - reuse it); `parseBlOffset()` in
+  `blyrics.ts`. The lyrics feature is complete end to end in unit tests; nothing has run
+  in a real browser yet (B8). Test helper `test/helpers/captureSummary.ts`. In jsdom
+  tests read fixtures by file path (Vite rewrites `import.meta.url` to http:).
 - Fakes: `test/helpers/fakeDebugger.ts` (`FAKE_TOKEN`, `FAKE_KEY_ID`, BL request
   builders), `fakePort.ts`, `captureHarness.ts`; `test/sw.test.ts` imports the real
   `sw.ts` under a stubbed `chrome` - extend it when you add SW wiring.
@@ -207,7 +213,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3, B4, B5a, B5b, B6, B7a. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
