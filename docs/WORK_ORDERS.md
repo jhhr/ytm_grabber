@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B10)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B11)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -216,6 +216,11 @@ your work in the tree and list every file you created or changed in your report.
   `audio:reveal` (types in `messages.ts`, incl. `HostPong`, `NATIVE_HOST_NAME`).
   `src/content/audioButton.ts` (player bar, per-video states, warning for any known
   non-ATV `musicVideoType`), `confirmPopover.ts`. Fake: `test/helpers/fakeNative.ts`.
+- Options + host follow-ups (B11): `src/options/optionsPage.ts` (`mountOptions`),
+  `static/options.html` + `options.css`; host keeps `native-host/saved-folders.json`
+  (reveal across runs); final reply is always a download's last message; shared fake
+  `native-host/testing/fake_yt_dlp.py`; `test-e2e/audio.e2e.test.ts` +
+  `nativeHost.ts` drive the real host (21 e2e tests in all, ~27 s). Python suite: 59.
 - Fakes: `test/helpers/fakeDebugger.ts` (`FAKE_TOKEN`, `FAKE_KEY_ID`, BL request
   builders), `fakePort.ts`, `captureHarness.ts`; `test/sw.test.ts` imports the real
   `sw.ts` under a stubbed `chrome` - extend it when you add SW wiring.
@@ -235,7 +240,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b, B8, B9, B10. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b, B8, B9, B10, B11. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
@@ -806,3 +811,8 @@ The next phase must know:
 - B12: install steps can end with Options -> Test connection (shows the ID, versions, problems). `E2E_OPTIONS_SCREENSHOT=<file.png>` keeps light/dark screenshots.
 Left open: the host's `_quote()` JSON-escapes non-ASCII in its error sentences (an e-acute shows as backslash-u00e9), visible in refusals. Two host processes saving within the same moment could drop one
 entry until that process saves again. install.ps1/uninstall.ps1 still never ran (no PowerShell).
+
+### Lead after B11 — 2026-10-04 — 8a2ce03
+Changed the host's `_quote()` to keep non-ASCII letters in error sentences (was
+JSON-escaped; the user's titles are often Finnish); test added. All suites green: 692
+unit, 59 Python, 21 e2e. B10 used ~326k tokens, B11 ~353k.

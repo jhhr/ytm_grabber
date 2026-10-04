@@ -526,5 +526,5 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible] — Done 2026-10-04 (ab29229)
 - **B9** Native host + installer scripts + host tests [Phase 5] — Done 2026-10-04 (c1e471d)
 - **B10** Audio button + page bridge + SW audio relay [Phase 6] — Done 2026-10-04 (21c504c)
-- **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part] — Done 2026-10-04
+- **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part] — Done 2026-10-04 (8a2ce03)
 - **B12** Documentation pass: README, `docs/spike-notes.md` 👤 checklist, this plan brought up to date [Phase 7, rest]
