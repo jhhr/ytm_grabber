@@ -503,3 +503,27 @@ Left open: `fixtures/local/` is empty, so the real-capture QQ test skips.
 Changed `parseQrc`: any number of leading credit lines is dropped (stop rule kept); only the
 uniform-timing test is limited to the first 5 lyric lines (PLAN 3.2.2 note). Tests updated
 and seen failing with the window removed. B2-B4 each used ~260-275k tokens.
+
+### B5a — 2026-10-04
+Built: `src/shared/storageArea.ts` (area seams, `isQuotaError`, `storedItemBytes`), `summary.ts` (`StoredCapture`, `BodySource`, `summarize`),
+`messages.ts` (requests + responses, `CAPTURE_PORT` and its messages, guards), `settings.ts` (`createSettingsStore(area)`); `src/background/store.ts`
+(`createCaptureStore({ area, now?, maxCaptures?, maxBytes? })` -> `put`, `get`), `requests.ts` (`handleCaptureGet`, `createMessageListener`); `sw.ts`
+answers `capture:get` from a store over `chrome.storage.session`. Test helper `test/helpers/fakeStorage.ts` (`FakeStorageArea`, `FakeEvent`).
+Choices / deviations:
+- Chromium source: the SESSION area's quota error is "Session storage quota bytes exceeded. Values were not stored." and it charges a memory
+  estimate; "Resource::kQuotaBytes quota exceeded" and key + JSON are the local/sync rules. The store matches /quota/i and budgets key + JSON in
+  UTF-8 (8 MiB; over-counts long strings, so safe). The fake has `kind: "session" | "local"` (wording; fails at >= vs > quota). PLAN 3.4 note.
+- Capture and index go in ONE `set()` (Chrome applies it whole), not two writes. Evicted captures are removed first; if the write then fails the
+  index is rewritten without them; `get()` drops entries whose capture is missing and removes captures the index does not list.
+- LRU = `lastUsed` in the index (put and `get` count; stamps never go back with the clock); the index is kept in that order.
+- `summarize` runs `pickForTony` with an empty stem and title (comment says why); only the winning source's id/label/timing/ext are kept.
+- Malformed requests get no reply (listener returns false); a failing handler still answers (`{ summary: null }` / `{ ok: false, error }`).
+  `lyrics:download` answers an error stub until B6.
+- Settings: one local item per setting (the options page and the SW cannot overwrite each other); `onSettingsChanged(cb)` passes the changed
+  settings' new values (defaults for removed or ill-typed ones) and returns an unsubscribe function.
+The next phase must know:
+- B5b: store a `StoredCapture` (copy fields by name; `put` also drops unknown fields), then `summarize(capture, sources)` for `done`. `put`
+  rejects with readable errors (too big, storage full). Serialisation is per store instance: use the one created in `sw.ts`.
+- B6: `store.get(videoId)` returns `sources` with contents; run `tonyReady`/`pickForTony` again with the real stem and title; replace the stub
+  in `requests.ts`. Fake: `calls`, `writtenText()` (all set() input, for secret checks), `beforeSet`/`beforeRemove` hooks inject failures.
+Left open: a capture the index does not list (only after index corruption) is removed only when `get()` meets it.

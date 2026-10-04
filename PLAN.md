@@ -299,7 +299,7 @@ Edge cases to handle:
 
 `chrome.storage.session` (10 MB quota, cleared on browser restart), key `capture:<videoId>` → `{ videoId, capturedAt, metadata, rawStream, unison?, sources[] }`. Keep the most recent 30 (LRU by `capturedAt`). Content script asks `capture:get { videoId }` before deciding whether to capture.
 
-**Lead decision (quota):** one stream can be a few hundred KB (several full TTMLs), and storing `sources[]` next to `rawStream` doubles it, so 30 captures can exceed the 10 MB quota. Store only the raw inputs — `{ videoId, capturedAt, metadata, rawStream, unisonRaw?, bodySource }` — and derive `sources[]` with `parseSse` + `extractSources` on read (cheap, pure). Evict LRU by count (30) **and** by total size (keep under ~8 MB, measured as UTF-16 length × 2 or with `getBytesInUse`); on a quota error evict the oldest and retry once.
+**Lead decision (quota):** one stream can be a few hundred KB (several full TTMLs), and storing `sources[]` next to `rawStream` doubles it, so 30 captures can exceed the 10 MB quota. Store only the raw inputs — `{ videoId, capturedAt, metadata, rawStream, unisonRaw?, bodySource }` — and derive `sources[]` with `parseSse` + `extractSources` on read (cheap, pure). Evict LRU by count (30) **and** by total size (keep under ~8 MB, measured as UTF-16 length × 2 or with `getBytesInUse`); on a quota error evict the oldest and retry once. *(B5a, checked in Chromium's source: the session area charges a memory estimate per item (`EstimateMemoryUsage` of key and value, about the UTF-8 length for strings), refuses a write that would reach the quota with "Session storage quota bytes exceeded. Values were not stored.", and applies a multi-key `set` whole or not at all. "Resource::kQuotaBytes quota exceeded" and the key + JSON byte rule belong to the local and sync areas. The store measures key + JSON in UTF-8, which is at or above what the session area charges for long strings, keeps 8 MiB, and recognises a quota error by the word "quota". LRU = last use (`capture:get` counts), kept in a `capture:index` item.)*
 
 ### 3.5 Lyrics button + menu (`content/lyricsButton.ts`, `content/menu.ts`)
 
@@ -496,7 +496,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B2** `sse.ts` + `sources.ts` + synthetic fixture [Phase 2] — Done 2026-10-04  (c63e14d)
 - **B3** `ttml.ts` writer + enhanced-LRC word converter + Tony-rules test reader [Phase 2b, part] — Done 2026-10-04 (4c5abd1)
 - **B4** QRC converter + `tonyPick.ts` + `blyrics.ts` [Phase 2b, rest] — Done 2026-10-04 (bcc8ce5)
-- **B5a** Messages + settings + capture store [Phase 3, part]
+- **B5a** Messages + settings + capture store [Phase 3, part] — Done 2026-10-04
 - **B5b** Capture manager, always-attached mode [Phase 3, rest]
 - **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part]
 - **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part]
