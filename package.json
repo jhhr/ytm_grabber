@@ -14,6 +14,7 @@
     "gen-key": "node scripts/gen-key.mjs"
   },
   "devDependencies": {
+    "@braccato/parsers": "0.3.2",
     "@types/chrome": "^0.3.4",
     "@types/node": "^22.20.5",
     "esbuild": "^0.28.2",

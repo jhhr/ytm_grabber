@@ -430,3 +430,25 @@ The next phase must know:
   (`$REF/b2/bparsers` is a runnable copy of @braccato/parsers; compare converters against it).
 - Real metadata fields beyond song/artist/album/duration are unknown: the fixture has no videoId.
 Left open: the real `done` payload (`{}` used); `mime` values untested against Chrome's download naming.
+
+### B3 — 2026-10-04
+Built: `src/shared/ttml.ts` (`TimedPiece/Word/Line`, `ttmlTime`, `writeTonyTtml`); `src/shared/convert/musixmatchWord.ts`
+`parseEnhancedLrc` (Musixmatch wordByWord and Unison richsync LRC); `test/helpers/tonyReader.ts` `readTony` (oracle with a strict
+hand-written XML tokenizer, no jsdom); goldens `test/fixtures/golden/{writer-basic,musixmatch-word}.ttml`; tests `ttml`,
+`musixmatchWord`, `tonyReader`. Dev dependency `@braccato/parsers` 0.3.2 (exact; same bytes as `$REF/braccato`): tests check our
+words and piece starts against BL's own `parseLRC`.
+Choices / deviations:
+- Writer cleans each piece (drops what XML 1.0 forbids, tab/CR/LF to space, trims); pieces, words and lines left empty are
+  dropped and use no key; a blank title writes no `<ttm:title>`. `<p>` begin = earliest piece begin (the first, for lyrics in
+  time order); body/div end = latest begin or end, as Tony's writer. Non-finite time: RangeError. No lines: empty div.
+- Converter follows BL where PLAN 3.2.1 wording differed (annotated there): two adjacent tags are no separator; in compact
+  style leading white space also starts a word. Unlike BL: `[offset:]` in ms (BL: seconds); credit-like lines kept (BL drops
+  them); a piece with inner spaces stays one piece (BL's renderer splits it); unclosed piece on the last line = begin + 1 s.
+- Tony and short pieces: a word ends at its LAST span's end; end == begin is accepted silently; end < begin becomes begin with
+  the warning "word ended before it started". The writer keeps times as given.
+The next phase must know:
+- B4: `parseEnhancedLrc(source.content)` for every `format === "enhanced-lrc"` source; check `lines.length > 0` before
+  `writeTonyTtml({ title: "Artist - Title", lines })`, else Tony gets a file with no words. QRC can produce `TimedLine[]` and use
+  `readTony` (test/helpers) for its round trip. Writer and converter are not imported by any entry yet.
+- `test/fixtures/golden/musixmatch-word.ttml` is a converted synthetic file: B12 can point the 👤 Tony import check at it.
+Left open: `fixtures/local/` is empty, so that test skips (it passed once against a temporary copy of the synthetic stream).

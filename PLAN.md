@@ -238,12 +238,12 @@ The format, as seen in my capture (verify against `fixtures/local/` captures):
 
 - Split each line after its `[…]` line stamp into alternating `<mm:ss.xx>` tags and text segments.
 - Each text segment sits between two tags; drop exactly **one** formatting space on each side.
-- A segment that is then empty or whitespace-only is a **separator** (a word boundary; Musixmatch times the spaces too).
+- A segment that is then empty or whitespace-only is a **separator** (a word boundary; Musixmatch times the spaces too). *(B3, as BL: an empty segment — two tags with nothing between them — is no separator; it adds no text and the pieces either side stay one word.)*
 - A non-blank segment is a **piece**: begin = the tag before it, end = the tag after it.
 - Consecutive pieces with **no separator between them** are one word (Musixmatch splits hyphenated words this way, e.g. `hy-` + `phenated`) → adjacent spans, which Tony joins.
 - Lines without pieces are skipped. Times are absolute.
 
-Lead check against BL's own parser (`@braccato/parsers` 0.3.2, `parseLRC`, MIT; a copy is in the lead's scratchpad, see the work orders): BL decides per line whether it is in **separator style** (some interior text segment is whitespace-only) or **compact style** (no whitespace-only segments, e.g. `<t0>Word <t1>next <t2>`). Handle both: in separator style the rules above apply (trim each piece); in compact style a piece whose raw text **ends in whitespace ends a word**, otherwise it joins the next piece (as in QRC). Header tags `[ti:…]`, `[ar:…]`, `[al:…]`, `[by:…]`, `[length:…]`, `[offset:…]`, `[re:…]`, `[ve:…]`, `[#:…]` are metadata. A line can end with a background part `[bg: …]` (same tag syntax): **drop it** in the Tony conversion (Tony skips background vocals anyway). A line can carry more than one `[mm:ss.xx]` stamp; use the earliest. Unison richsync LRC uses the same converter.
+Lead check against BL's own parser (`@braccato/parsers` 0.3.2, `parseLRC`, MIT; a copy is in the lead's scratchpad, see the work orders): BL decides per line whether it is in **separator style** (some interior text segment is whitespace-only) or **compact style** (no whitespace-only segments, e.g. `<t0>Word <t1>next <t2>`). Handle both: in separator style the rules above apply (trim each piece); in compact style a piece whose raw text **ends in whitespace ends a word**, otherwise it joins the next piece (as in QRC) *(B3: and one whose raw text starts with whitespace starts a word — BL's renderer splits every part at whitespace)*. Header tags `[ti:…]`, `[ar:…]`, `[al:…]`, `[by:…]`, `[length:…]`, `[offset:…]`, `[re:…]`, `[ve:…]`, `[#:…]` are metadata. A line can end with a background part `[bg: …]` (same tag syntax): **drop it** in the Tony conversion (Tony skips background vocals anyway). A line can carry more than one `[mm:ss.xx]` stamp; use the earliest. Unison richsync LRC uses the same converter.
 
 #### 3.2.2 QQ QRC → TTML (`convert/qrc.ts`)
 
@@ -493,7 +493,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 
 - **B1** Scaffold + `filenames.ts` [Phase 1, part of 2] — Done 2026-10-04 (0348fed)
 - **B2** `sse.ts` + `sources.ts` + synthetic fixture [Phase 2] — Done 2026-10-04  (c63e14d)
-- **B3** `ttml.ts` writer + enhanced-LRC word converter + Tony-rules test reader [Phase 2b, part]
+- **B3** `ttml.ts` writer + enhanced-LRC word converter + Tony-rules test reader [Phase 2b, part] — Done 2026-10-04
 - **B4** QRC converter + `tonyPick.ts` + `blyrics.ts` [Phase 2b, rest]
 - **B5a** Messages + settings + capture store [Phase 3, part]
 - **B5b** Capture manager, always-attached mode [Phase 3, rest]
