@@ -493,7 +493,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 
 - **B1** Scaffold + `filenames.ts` [Phase 1, part of 2] — Done 2026-10-04 (0348fed)
 - **B2** `sse.ts` + `sources.ts` + synthetic fixture [Phase 2] — Done 2026-10-04  (c63e14d)
-- **B3** `ttml.ts` writer + enhanced-LRC word converter + Tony-rules test reader [Phase 2b, part] — Done 2026-10-04
+- **B3** `ttml.ts` writer + enhanced-LRC word converter + Tony-rules test reader [Phase 2b, part] — Done 2026-10-04 (4c5abd1)
 - **B4** QRC converter + `tonyPick.ts` + `blyrics.ts` [Phase 2b, rest]
 - **B5a** Messages + settings + capture store [Phase 3, part]
 - **B5b** Capture manager, always-attached mode [Phase 3, rest]

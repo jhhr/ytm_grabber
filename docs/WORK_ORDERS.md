@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B2)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B3)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -138,6 +138,16 @@ your work in the tree and list every file you created or changed in your report.
 - BL's real parsers, runnable: `node $REF/b2/check-bl.mjs <dir with fixtures> -v`, and
   `$REF/b2/bparsers` (a runnable copy of `@braccato/parsers` 0.3.2) to compare converter
   output against what BL itself parses.
+- `src/shared/ttml.ts`: `TimedPiece { text, begin, end }` (s), `TimedWord { pieces }`,
+  `TimedLine { words }`; `ttmlTime()`; `writeTonyTtml({ title?, lines })` (cleans text,
+  drops empty pieces/words/lines; with no lines it writes an empty div, which Tony
+  refuses - callers check `lines.length > 0`).
+- `src/shared/convert/musixmatchWord.ts`: `parseEnhancedLrc(text)` -> `TimedLine[]` for
+  every `format === "enhanced-lrc"` source (Musixmatch word-by-word, Unison richsync).
+- Test helpers: `test/helpers/tonyReader.ts` `readTony()` - an independent oracle of
+  Tony's TTML rules; use it for round trips. `@braccato/parsers` 0.3.2 is a pinned
+  devDependency: tests may compare against BL's own parsers (`parseLRC`, `parseQRC`).
+  Goldens in `test/fixtures/golden/`.
 - Platform traps found so far (everyone):
   - `\uXXXX` escapes written through the Write/Edit tools arrive as the literal character.
     In code use `\u{XXXX}` or `\xNN`, which survive. Keep source files ASCII.
@@ -146,7 +156,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
