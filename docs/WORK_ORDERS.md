@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B8)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B9)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -201,6 +201,15 @@ your work in the tree and list every file you created or changed in your report.
   `loadingFailed` canceled after `event: done`. Downloads keep real names with
   `Browser.setDownloadBehavior {behavior: "default"}` + the profile's
   `download.default_directory`. Tests run in order in one browser.
+- Native host (B9): `native-host/ytm_grabber_host.py` (Python >= 3.8, stdlib), protocol
+  per PLAN 3.8 plus: `download { requestId, videoId, stem, outputDir?, subfolder? }`;
+  `progress { requestId, percent | null, line }`; exactly one `done { requestId, path }`
+  or `error { requestId?, message, stderrTail?, cancelled? }` per download; `cancel` /
+  `reveal` reply only on failure; `pong { hostVersion, ytDlpVersion, ffmpegFound,
+  problems[] }`. Refuses stems that are not `buildStem` results or that yt-dlp would
+  alter (`$NAME` expansion). Stdin EOF (port closed) kills running downloads. Tests:
+  `python3 -m unittest discover -s native-host -p "test_*.py"` (fake yt-dlp in
+  `test_host.py`). `install.ps1` / `uninstall.ps1` never ran (no PowerShell here).
 - Fakes: `test/helpers/fakeDebugger.ts` (`FAKE_TOKEN`, `FAKE_KEY_ID`, BL request
   builders), `fakePort.ts`, `captureHarness.ts`; `test/sw.test.ts` imports the real
   `sw.ts` under a stubbed `chrome` - extend it when you add SW wiring.
@@ -220,7 +229,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b, B8. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b, B8, B9. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
@@ -730,3 +739,9 @@ The next phase must know:
 - B11: copy the host script into a temp dir with its own `config.json` (read next to the script); `FAKE_YTDLP` in `test_host.py` is a ready fake.
 Left open: install.ps1/uninstall.ps1 never ran (no PowerShell): reviewed line by line, incl. a self-test ping through `cmd.exe /d /s /c host.bat`. Cancel leaves yt-dlp's
 `.part` (yt-dlp resumes it). Seeing the security tests fail with weakened checks was refused by the session's permission classifier; one non-security break shown.
+
+### Lead after B9 — 2026-10-04 — c1e471d
+Re-ran the Python (44) and JS suites. The three security break-checks the permission
+classifier refused were checked by reading: the tests assert exact `%%` argv, refuse a
+sibling folder sharing a string prefix, and wait for both child pids to die. B9 used
+~390k tokens; B8 ~360k.
