@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B5b)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B6)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -173,6 +173,14 @@ your work in the tree and list every file you created or changed in your report.
   requests count and reads only `videoId` from the body. Port replies: `ready` (may come
   at once), `done { summary }` (`summary.videoId` may differ from the request),
   `error { reason }` (a user-readable sentence). `bodySource` is in summary and store.
+- Downloads (B6): `src/shared/lyricsItems.ts` (menu item ids: `tony`, `native:<id>`,
+  `ttml:<id>`, `raw`, `showing`, `recapture`), `lyricsFiles.ts` (`lyricsFile(itemId,
+  capture, stem)`, `dataUrlFor` - base64, no BOM), `downloadDir.ts`, `menuModel.ts`
+  (`lyricsMenu({ summary, showingName, forPlayingVideo })` -> `MenuItem[]`, every
+  disabled item with a reason); `src/background/downloads.ts` answers `lyrics:download
+  { videoId, itemId, stem }` -> `{ ok: true } | { ok: false, error }` and learns
+  `learnedDownloadDir`. The SW refuses a stem that is not a `buildStem` result for that
+  video. Fake: `test/helpers/fakeDownloads.ts` (+ `decodeDataUrl`).
 - Fakes: `test/helpers/fakeDebugger.ts` (`FAKE_TOKEN`, `FAKE_KEY_ID`, BL request
   builders), `fakePort.ts`, `captureHarness.ts`; `test/sw.test.ts` imports the real
   `sw.ts` under a stubbed `chrome` - extend it when you add SW wiring.
@@ -192,7 +200,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3, B4, B5a, B5b. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4, B5a, B5b, B6. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
