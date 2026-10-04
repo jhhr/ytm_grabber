@@ -462,3 +462,27 @@ The next phase must know:
   `readTony` (test/helpers) for its round trip. Writer and converter are not imported by any entry yet.
 - `test/fixtures/golden/musixmatch-word.ttml` is a converted synthetic file: B12 can point the 👤 Tony import check at it.
 Left open: `fixtures/local/` is empty, so that test skips (it passed once against a temporary copy of the synthetic stream).
+
+### B4 — 2026-10-04
+Built: `src/shared/convert/qrc.ts` `parseQrc(text, { title?, artist? })`; `src/shared/tonyPick.ts` `tonyReady`, `pickForTony`,
+`TONY_MAX_BYTES`; `src/shared/blyrics.ts` `BL_SELECTORS`, `BL_DOCK_POSITION_ATTRIBUTE`, `BL_VERIFIED_VERSION`, `sourcesForDisplayName`;
+golden `test/fixtures/golden/qq.ttml`; tests `qrc` (incl. a cross-check against BL's `parseQRC`), `tonyPick`, `blyrics`.
+Choices / deviations:
+- QRC credits as specified (first 5 lyric lines, stop at the first non-credit) with BL's exact key list (49 keys, role split, short-role
+  suffix rule, 40-char key limit); title/artist from the context and `[ti:]`/`[ar:]`. BL itself differs (note added under PLAN 3.2.2):
+  window "until 5 kept", key lines dropped anywhere, a fuzzy similarity rule (left out: it drops real first lines), singer labels.
+- Entities decoded once, in the attribute only (raw QRC is not XML); bad references U+FFFD. Lines with no text are skipped, uncounted.
+- `TonyContext = { stem, title, metadata? }`: the capture's song/artist feed QQ credit detection. `tonyReady` -> `{ ok: true, content,
+  ext, filename, timing, converted, label }` | `{ ok: false, reason }`; `TonyPick` = the file + `source`. Labels "<BL name> —
+  word timing[, converted]". A converter that throws makes that source not ready (reason), never the whole pick.
+- Pick order and gap decisions: PLAN 7.1 row. `skipped` lists tried candidates only (plain/JSON never are). DOCTYPE refused in any
+  case, anywhere, LRC too; size in UTF-8 bytes, exactly 1 MiB accepted.
+- `sourcesForDisplayName` -> `{ downloadable: true, sources }` (non-empty, best first, only sources carrying that display name, so
+  never raw JSON) | `{ downloadable: false, why: "youtube" | "not-captured" | "unknown-name", reason }`.
+- `offsetValue` is `.blyrics-dock__offset > .blyrics-dock__offset-value`: BL's body-rendered offset menu reuses the class.
+The next phase must know:
+- B5a: call `pickForTony(sources, { stem, title, metadata })`; summarise `pick.source.id`, `label`, `filename`, `timing`, `converted`
+  and `skipped`. B6: "what's showing" = `sourcesForDisplayName`, then the first source whose `tonyReady` is ok; an LRC pick's label
+  does not say LRC (its `ext` does).
+- As-is content may hold lone surrogates (JSON `\ud800`): `encodeURIComponent` throws on them (B6 data URLs); TextEncoder does not.
+Left open: `fixtures/local/` is empty, so the real-capture QQ test skips.
