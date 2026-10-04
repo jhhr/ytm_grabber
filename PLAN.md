@@ -499,7 +499,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B3** `ttml.ts` writer + enhanced-LRC word converter + Tony-rules test reader [Phase 2b, part] — Done 2026-10-04 (4c5abd1)
 - **B4** QRC converter + `tonyPick.ts` + `blyrics.ts` [Phase 2b, rest] — Done 2026-10-04 (bcc8ce5)
 - **B5a** Messages + settings + capture store [Phase 3, part] — Done 2026-10-04 (69e9560)
-- **B5b** Capture manager, always-attached mode [Phase 3, rest] — Done 2026-10-04
+- **B5b** Capture manager, always-attached mode [Phase 3, rest] — Done 2026-10-04 (0eb449e)
 - **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part]
 - **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part]
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest]

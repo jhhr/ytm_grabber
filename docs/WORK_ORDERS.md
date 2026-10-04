@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B5a)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B5b)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -165,6 +165,17 @@ your work in the tree and list every file you created or changed in your report.
   `CAPTURE_PORT = "capture"` with `start` / `ready` / `done` / `error`, guards that
   check shapes + `isVideoId`), `settings.ts` (`createSettingsStore(area)`; one item per
   setting), `storageArea.ts` (area interfaces, `isQuotaError`, `storedItemBytes`).
+- Capture (B5b): `src/background/capture.ts` `createCaptureManager({ debugger, tabs, store,
+  settings, log?, now?, timers? })`, wired in `sw.ts` (top-level listeners: `capture`
+  port via `runtime.onConnect`, `debugger.onEvent/onDetach`, `tabs.onUpdated`, settings
+  changes; `globalThis.captureNow(tabId, videoId?)`). `networkWatcher.ts` turns one
+  session's CDP events into a `CapturedStream`; `src/shared/blRequests.ts` decides which
+  requests count and reads only `videoId` from the body. Port replies: `ready` (may come
+  at once), `done { summary }` (`summary.videoId` may differ from the request),
+  `error { reason }` (a user-readable sentence). `bodySource` is in summary and store.
+- Fakes: `test/helpers/fakeDebugger.ts` (`FAKE_TOKEN`, `FAKE_KEY_ID`, BL request
+  builders), `fakePort.ts`, `captureHarness.ts`; `test/sw.test.ts` imports the real
+  `sw.ts` under a stubbed `chrome` - extend it when you add SW wiring.
 - Fakes: `test/helpers/fakeStorage.ts` (`FakeStorageArea` with quota, call log,
   `writtenText()` for secret checks, failure hooks; `FakeEvent`).
 - Content may hold lone surrogates: `encodeURIComponent` throws on them (use TextEncoder
@@ -181,7 +192,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3, B4, B5a. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4, B5a, B5b. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
@@ -564,3 +575,9 @@ The next phase must know:
 - B8: `captureNow(tabId)` from the SW; `bodySource` is in the summary and the stored capture; `debugCapture` logs `using <path>`.
 Left open: `tabs.onUpdated` is registered in every mode (no filter in Chrome), so the SW wakes on every tab load. Whether Chrome feeds
 `streamResourceContent` / `eventSourceMessageReceived` for BL's fetch SSE is unverified until B8.
+
+### Lead after B5b — 2026-10-04 — 0eb449e
+Reviewed  (only id, path, videoId kept) and the on-demand lifecycle (detach in
+); full suite 411 passed. B5b used ~350k tokens. The secrets assertion covers the
+shared watcher in on-demand tests only: B8 must also check storage for the fake secrets
+after an always-attached capture.
