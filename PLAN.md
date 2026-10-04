@@ -341,6 +341,8 @@ Edge cases to handle:
 - **Song vs. video warning:** if `musicVideoType` is `MUSIC_VIDEO_TYPE_OMV` (official music video) rather than `MUSIC_VIDEO_TYPE_ATV` (the album track), show a warning before downloading — a music video's audio often has an intro/outro, so the track-synced lyrics won't line up. Offer "Download anyway".
 - Click → `audio:download { videoId, stem }` to the SW. The SW resolves `outputDir` (learned download dir → option override → host's fallback) and talks to the native host over a `chrome.runtime.connectNative` **port**, relaying progress to the tab.
 
+*(B10: there is no `audio:download` message: each download runs over its own `audio` port (content `start { videoId, stem }` / `cancel`; worker `progress { percent }`, `done { path }`, `error { message, cancelled? }`), and one shared native port serves all of them, closed when no request is left. `outputDir` = the override, else the learned folder, else omitted (the host's fallback): the override wins. Any known `musicVideoType` other than ATV gets the warning; an unknown one does not. A click while running asks "Stop this audio download?" in a popover; a click on done sends `audio:reveal { path }`. **Open point:** the host reveals only inside folders it saved to in its own process, and closing the idle port ends that process, so a reveal after the download finished is refused.)*
+
 ### 3.8 Native messaging host (`native-host/`)
 
 **Host name:** `com.jormki.ytm_grabber`.
@@ -518,6 +520,6 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest] — Done 2026-10-04 (e2c61e3)
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible] — Done 2026-10-04 (ab29229)
 - **B9** Native host + installer scripts + host tests [Phase 5] — Done 2026-10-04 (c1e471d)
-- **B10** Audio button + page bridge + SW audio relay [Phase 6]
+- **B10** Audio button + page bridge + SW audio relay [Phase 6] — Done 2026-10-04
 - **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part]
 - **B12** Documentation pass: README, `docs/spike-notes.md` 👤 checklist, this plan brought up to date [Phase 7, rest]

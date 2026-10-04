@@ -16,6 +16,8 @@ const capture = (videoId: string): StoredCapture => ({ videoId, capturedAt: 1_70
 
 /** For listeners whose test sends no lyrics:download. */
 const noDownloads = () => Promise.reject(new Error("not expected in this test"));
+/** For listeners whose test sends no audio request. */
+const noAudio = { ping: noDownloads, reveal: noDownloads };
 
 async function setup() {
   const area = new FakeStorageArea();
@@ -65,7 +67,7 @@ describe("handleCaptureGet", () => {
 describe("createMessageListener", () => {
   it("answers capture:get asynchronously, keeping the channel open", async () => {
     const { store } = await setup();
-    const call = send(createMessageListener({ store, downloadLyrics: noDownloads }), { type: "capture:get", videoId: ID });
+    const call = send(createMessageListener({ store, downloadLyrics: noDownloads, audio: noAudio }), { type: "capture:get", videoId: ID });
     expect(call.kept).toBe(true);
     expect(await call.response()).toEqual({ summary: summarize(capture(ID), sources) });
     expect(call.sendResponse).toHaveBeenCalledTimes(1);
@@ -74,7 +76,7 @@ describe("createMessageListener", () => {
   it("does not answer a malformed request and never reads the store for it", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const get = vi.fn();
-    const listener = createMessageListener({ store: { get }, downloadLyrics: noDownloads });
+    const listener = createMessageListener({ store: { get }, downloadLyrics: noDownloads, audio: noAudio });
     for (const message of [{ type: "capture:get", videoId: "../../etc" }, { type: "capture:get" }, { type: "nope" }, "capture:get", null]) {
       const call = send(listener, message);
       expect(call.kept).toBe(false);
@@ -86,7 +88,7 @@ describe("createMessageListener", () => {
 
   it("answers with no capture when the store fails, so the sender is never left waiting", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const deps: RequestDeps = { store: { get: () => Promise.reject(new Error("storage gone")) }, downloadLyrics: noDownloads };
+    const deps: RequestDeps = { store: { get: () => Promise.reject(new Error("storage gone")) }, downloadLyrics: noDownloads, audio: noAudio };
     const call = send(createMessageListener(deps), { type: "capture:get", videoId: ID });
     expect(call.kept).toBe(true);
     expect(await call.response()).toEqual({ summary: null });
@@ -97,7 +99,7 @@ describe("createMessageListener", () => {
     const { store } = await setup();
     const request = { type: "lyrics:download", videoId: ID, itemId: "native:golyrics", stem: `x [${ID}]` };
     const downloadLyrics = vi.fn().mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false, error: "There is no nope source in this capture" });
-    const listener = createMessageListener({ store, downloadLyrics });
+    const listener = createMessageListener({ store, downloadLyrics, audio: noAudio });
     const call = send(listener, request);
     expect(call.kept).toBe(true);
     expect(await call.response()).toEqual({ ok: true });
@@ -108,7 +110,7 @@ describe("createMessageListener", () => {
   it("answers lyrics:download with the error when the downloader fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { store } = await setup();
-    const call = send(createMessageListener({ store, downloadLyrics: () => Promise.reject(new Error("storage gone")) }), {
+    const call = send(createMessageListener({ store, downloadLyrics: () => Promise.reject(new Error("storage gone")), audio: noAudio }), {
       type: "lyrics:download",
       videoId: ID,
       itemId: "tony",
@@ -121,12 +123,36 @@ describe("createMessageListener", () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const { store } = await setup();
     const downloadLyrics = vi.fn();
-    const listener = createMessageListener({ store, downloadLyrics });
+    const listener = createMessageListener({ store, downloadLyrics, audio: noAudio });
     for (const itemId of ["showing", "recapture", "native:../x", ""]) {
       const call = send(listener, { type: "lyrics:download", videoId: ID, itemId, stem: `x [${ID}]` });
       expect(call.kept).toBe(false);
     }
     await Promise.resolve();
     expect(downloadLyrics).not.toHaveBeenCalled();
+  });
+
+  it("hands audio:ping and audio:reveal to the audio relay and answers with its result", async () => {
+    const { store } = await setup();
+    const pong = { hostVersion: "0.1.0", ytDlpVersion: null, ffmpegFound: true, problems: [] };
+    const audio = { ping: vi.fn(async () => ({ ok: true as const, pong })), reveal: vi.fn(async () => ({ ok: false as const, error: "Windows only" })) };
+    const listener = createMessageListener({ store, downloadLyrics: noDownloads, audio });
+    const ping = send(listener, { type: "audio:ping" });
+    expect(ping.kept).toBe(true);
+    expect(await ping.response()).toEqual({ ok: true, pong });
+    const reveal = send(listener, { type: "audio:reveal", path: "C:\\x.opus" });
+    expect(await reveal.response()).toEqual({ ok: false, error: "Windows only" });
+    expect(audio.reveal).toHaveBeenCalledExactlyOnceWith({ type: "audio:reveal", path: "C:\\x.opus" });
+  });
+
+  it("answers audio requests with the error when the relay fails, and not at all without a path to reveal", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { store } = await setup();
+    const failing = () => Promise.reject(new Error("worker trouble"));
+    const listener = createMessageListener({ store, downloadLyrics: noDownloads, audio: { ping: failing, reveal: failing } });
+    expect(await send(listener, { type: "audio:ping" }).response()).toEqual({ ok: false, error: "worker trouble" });
+    expect(await send(listener, { type: "audio:reveal", path: "C:\\x.opus" }).response()).toEqual({ ok: false, error: "worker trouble" });
+    for (const path of [undefined, "", 1, ["C:\\x"]]) expect(send(listener, { type: "audio:reveal", path }).kept).toBe(false);
   });
 });

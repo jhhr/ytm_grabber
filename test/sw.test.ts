@@ -1,10 +1,12 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { AUDIO_TEXT, CHROME_HOST_ERRORS } from "../src/background/audio";
 import { UNISON_GRACE_MS } from "../src/background/networkWatcher";
 import { buildStem } from "../src/shared/filenames";
-import { CAPTURE_PORT } from "../src/shared/messages";
+import { AUDIO_PORT, CAPTURE_PORT, NATIVE_HOST_NAME } from "../src/shared/messages";
 import { ID, TAB, YTM_URL, serveStream, tick } from "./helpers/captureHarness";
 import { FakeDebugger, fakeTabs } from "./helpers/fakeDebugger";
 import { FakeDownloads } from "./helpers/fakeDownloads";
+import { FakeNative } from "./helpers/fakeNative";
 import { FakePort } from "./helpers/fakePort";
 import { FakeEvent, FakeStorageArea } from "./helpers/fakeStorage";
 
@@ -15,7 +17,7 @@ afterEach(() => {
   delete (globalThis as { captureNow?: unknown }).captureNow;
 });
 
-it("registers every listener as it loads, captures through the capture port into the store capture:get reads, and saves lyrics from it", async () => {
+it("registers every listener as it loads, captures through the capture port into the store capture:get reads, saves lyrics from it, and relays audio downloads and ping to the native host", async () => {
   vi.useFakeTimers();
   vi.spyOn(console, "log").mockImplementation(() => undefined);
   const fake = new FakeDebugger();
@@ -27,7 +29,16 @@ it("registers every listener as it loads, captures through the capture port into
   const onUpdated = new FakeEvent<(tabId: number, changeInfo: { status?: string }, tab: { url?: string }) => void>();
   const extensionId = "mengelecikhhdpjdebjpokcmhdkhjobj";
   const downloads = new FakeDownloads(extensionId);
-  vi.stubGlobal("chrome", { runtime: { onMessage, onConnect, id: extensionId }, storage: { session, local }, debugger: fake, tabs: { ...fakeTabs(fake), onUpdated }, downloads });
+  const native = new FakeNative();
+  const runtime = {
+    onMessage,
+    onConnect,
+    id: extensionId,
+    connectNative: native.connectNative,
+    sendNativeMessage: native.sendNativeMessage,
+    lastError: undefined as { message: string } | undefined,
+  };
+  vi.stubGlobal("chrome", { runtime, storage: { session, local }, debugger: fake, tabs: { ...fakeTabs(fake), onUpdated }, downloads });
   vi.resetModules();
   await import("../src/background/sw");
 
@@ -60,11 +71,48 @@ it("registers every listener as it loads, captures through the capture port into
   await tick();
   expect(local.snapshot()).toMatchObject({ learnedDownloadDir: downloads.downloadDir });
 
-  // Not from a tab: turned away. Another port name: not ours to handle.
-  const stray = new FakePort(CAPTURE_PORT, {});
-  onConnect.dispatch(stray);
-  expect(stray.connected).toBe(false);
-  const other = new FakePort("audio", { tab: { id: TAB } });
+  // An audio download through the `audio` port: to the folder just learned, relayed back.
+  const audio = new FakePort(AUDIO_PORT, { tab: { id: TAB } });
+  onConnect.dispatch(audio);
+  audio.deliver({ type: "start", videoId: ID, stem });
+  await tick();
+  expect(native.connectNative).toHaveBeenCalledExactlyOnceWith(NATIVE_HOST_NAME);
+  const [sent] = native.port.posted as { requestId: string }[];
+  expect(sent).toEqual({ type: "download", requestId: expect.any(String), videoId: ID, stem, outputDir: downloads.downloadDir, subfolder: false });
+  native.reply({ type: "progress", requestId: sent.requestId, percent: 50, line: "" });
+  native.reply({ type: "done", requestId: sent.requestId, path: `${downloads.downloadDir}/${stem}.opus` });
+  expect(audio.posted).toEqual([
+    { type: "progress", percent: 50 },
+    { type: "done", path: `${downloads.downloadDir}/${stem}.opus` },
+  ]);
+  expect(native.port.connected).toBe(false);
+
+  // Chrome's lastError when the host is missing reaches the tab in the user's words.
+  const missing = new FakePort(AUDIO_PORT, { tab: { id: TAB } });
+  onConnect.dispatch(missing);
+  missing.deliver({ type: "start", videoId: ID, stem });
+  await tick();
+  runtime.lastError = { message: CHROME_HOST_ERRORS.notFound };
+  native.port.remoteDisconnect();
+  runtime.lastError = undefined;
+  expect(missing.posted).toEqual([{ type: "error", message: AUDIO_TEXT.notInstalled }]);
+
+  // audio:ping, as the options page sends it.
+  const pong = { hostVersion: "0.1.0", ytDlpVersion: "2026.08.19", ffmpegFound: true, problems: [] };
+  native.sendNativeMessage.mockResolvedValueOnce({ type: "pong", ...pong });
+  const pinged = vi.fn();
+  expect(onMessage.dispatch({ type: "audio:ping" }, {}, pinged)).toEqual([true]);
+  await tick();
+  expect(pinged).toHaveBeenCalledWith({ ok: true, pong });
+  expect(native.sendNativeMessage).toHaveBeenCalledExactlyOnceWith(NATIVE_HOST_NAME, { type: "ping" });
+
+  // Not from a tab: turned away, for both ports. Another port name: not ours to handle.
+  for (const name of [CAPTURE_PORT, AUDIO_PORT]) {
+    const stray = new FakePort(name, {});
+    onConnect.dispatch(stray);
+    expect(stray.connected).toBe(false);
+  }
+  const other = new FakePort("nope", { tab: { id: TAB } });
   onConnect.dispatch(other);
   expect(other.connected).toBe(true);
   expect(other.onMessage.hasListeners()).toBe(false);

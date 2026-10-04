@@ -1,5 +1,7 @@
 // Content script entry (dist/content.js), isolated world on music.youtube.com.
+import type { ExtensionRequest } from "../shared/messages";
 import { createSettingsStore } from "../shared/settings";
+import { mountAudioButton } from "./audioButton";
 import { mountLyricsButton } from "./lyricsButton";
 import { createLyricsFlow } from "./lyricsFlow";
 import { createToaster } from "./toast";
@@ -31,18 +33,21 @@ if (html.hasAttribute(LOADED_ATTRIBUTE)) {
 } else {
   html.setAttribute(LOADED_ATTRIBUTE, "");
   // chrome.* is reached through these wrappers at call time: after the extension is reloaded
-  // they throw "Extension context invalidated", which the flow turns into a message.
+  // they throw "Extension context invalidated", which the flows turn into a message.
+  const runtime = {
+    sendMessage: (message: ExtensionRequest) => liveRuntime().sendMessage(message),
+    connect: (connectInfo: { name: string }) => liveRuntime().connect(connectInfo),
+    lastError: () => (runtimeOrUndefined() === undefined ? CONTEXT_INVALIDATED : chrome.runtime.lastError?.message),
+  };
+  // One toaster for the page: every part that talks to the user shares it.
+  const toaster = createToaster();
   const lyrics = createLyricsFlow({
-    runtime: {
-      sendMessage: (message) => liveRuntime().sendMessage(message),
-      connect: (connectInfo) => liveRuntime().connect(connectInfo),
-      lastError: () => (runtimeOrUndefined() === undefined ? CONTEXT_INVALIDATED : chrome.runtime.lastError?.message),
-    },
+    runtime,
     // Content scripts may read chrome.storage.local, where the options are kept.
     settings: createSettingsStore(chrome.storage.local),
-    // One toaster for the page: every part that talks to the user should share it.
-    toaster: createToaster(),
+    toaster,
   });
   mountLyricsButton({ onClick: (button) => lyrics.onClick(button) });
+  mountAudioButton({ runtime, toaster });
   console.log(`${LOG_PREFIX} content script loaded`);
 }

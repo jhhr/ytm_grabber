@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // The real content script entry, loaded into a jsdom page with BL's dock and a stubbed chrome.*.
 import { afterEach, expect, it, vi } from "vitest";
+import { AUDIO_BUTTON_CLASS } from "../src/content/audioButton";
 import { DOCK_BUTTON_CLASS } from "../src/content/lyricsButton";
 import { MENU_CLASS } from "../src/content/menu";
 import { TOAST_CLASS } from "../src/content/toast";
@@ -26,23 +27,35 @@ function answerWhatIsPlaying(): void {
   });
 }
 
-it("mounts one lyrics button per page however often it is injected; a click opens the menu of the stored capture; after a reload it says to reload the tab", async () => {
+/** YTM's player bar with its right-hand controls, where the audio button goes. */
+function addPlayerBar(): void {
+  const bar = document.createElement("ytmusic-player-bar");
+  const controls = document.createElement("div");
+  controls.className = "right-controls-buttons";
+  bar.append(controls);
+  document.body.append(bar);
+}
+
+it("mounts one lyrics button and one audio button per page however often it is injected; a click opens the menu of the stored capture; both buttons share one toaster; after a reload it says to reload the tab", async () => {
   const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
   const sendMessage = vi.fn(async () => ({ summary: fixtureSummary(ID) }));
   const connect = vi.fn();
   vi.stubGlobal("chrome", { runtime: { sendMessage, connect, lastError: undefined }, storage: { local: new FakeStorageArea({ kind: "local" }) } });
   addPlayerPage();
   mountDock();
+  addPlayerBar();
   vi.resetModules();
   await import("../src/content/main");
   expect(document.documentElement.hasAttribute("data-pg-grabber")).toBe(true);
   expect(log).toHaveBeenLastCalledWith("[YTM Practice Grabber] content script loaded");
   expect(document.querySelectorAll(`.${DOCK_BUTTON_CLASS}`)).toHaveLength(1);
+  expect(document.querySelectorAll(`.${AUDIO_BUTTON_CLASS}`)).toHaveLength(1);
 
   vi.resetModules();
   await import("../src/content/main");
   expect(log).toHaveBeenLastCalledWith("[YTM Practice Grabber] content script already running in this page");
   expect(document.querySelectorAll(`.${DOCK_BUTTON_CLASS}`)).toHaveLength(1);
+  expect(document.querySelectorAll(`.${AUDIO_BUTTON_CLASS}`)).toHaveLength(1);
 
   answerWhatIsPlaying();
   const button = document.querySelector<HTMLButtonElement>(`.${DOCK_BUTTON_CLASS}`)!;
@@ -55,6 +68,17 @@ it("mounts one lyrics button per page however often it is injected; a click open
   expect(button.getAttribute("aria-expanded")).toBe("true");
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
   expect(document.querySelector(`.${MENU_CLASS}`)).toBeNull();
+
+  // The audio button downloads over an `audio` port and reports through the same toaster.
+  const audioButton = document.querySelector<HTMLButtonElement>(`.${AUDIO_BUTTON_CLASS}`)!;
+  const audioPort = new FakePort("audio");
+  connect.mockImplementationOnce(() => audioPort);
+  audioButton.click();
+  await vi.waitFor(() => expect(audioPort.types()).toEqual(["start"]));
+  expect(connect).toHaveBeenCalledExactlyOnceWith({ name: "audio" });
+  audioPort.deliver({ type: "error", message: "yt-dlp failed (exit code 1)" });
+  expect(document.querySelector(`.${TOAST_CLASS}`)?.textContent).toBe("Audio download failed: yt-dlp failed (exit code 1)");
+  connect.mockReset();
 
   // The extension was reloaded: this script lives on, and every chrome.* call throws.
   sendMessage.mockImplementation(() => {
@@ -81,4 +105,10 @@ it("mounts one lyrics button per page however often it is injected; a click open
   button.click();
   await vi.waitFor(() => expect(toast.textContent).toBe("The extension was reloaded: reload this tab"));
   expect(document.querySelectorAll(`.${DOCK_BUTTON_CLASS}`)).toHaveLength(1);
+  // The audio button's port goes through the same wrapper: a retry now says to reload the tab.
+  toast.textContent = "";
+  audioButton.click();
+  await vi.waitFor(() => expect(toast.textContent).toBe("Audio download failed: The extension was reloaded: reload this tab"));
+  expect(document.querySelectorAll(`.${TOAST_CLASS}`)).toHaveLength(1);
+  expect(document.querySelectorAll(`.${AUDIO_BUTTON_CLASS}`)).toHaveLength(1);
 });

@@ -1,8 +1,9 @@
 // Service worker entry (dist/background.js, an ES module). Chrome only delivers events
 // to listeners registered synchronously at top level, so every listener is added here, directly.
-import { CAPTURE_PORT } from "../shared/messages";
+import { AUDIO_PORT, CAPTURE_PORT } from "../shared/messages";
 import { createSettingsStore } from "../shared/settings";
 import type { CaptureSummary } from "../shared/summary";
+import { createAudioRelay } from "./audio";
 import { createCaptureManager } from "./capture";
 import { createLyricsDownloads } from "./downloads";
 import { createMessageListener } from "./requests";
@@ -18,21 +19,33 @@ const settings = createSettingsStore(chrome.storage.local);
 const captures = createCaptureManager({ debugger: chrome.debugger, tabs: chrome.tabs, store, settings, log: console });
 // Lyrics go where Chrome saves downloads; the downloadDirOverride option affects only the audio flow.
 const lyrics = createLyricsDownloads({ downloads: chrome.downloads, store, settings, extensionId: chrome.runtime.id, log: console });
+// Audio goes through the native host; chrome.runtime is reached at call time.
+const audio = createAudioRelay({
+  native: {
+    connectNative: (application) => chrome.runtime.connectNative(application),
+    sendNativeMessage: (application, message) => chrome.runtime.sendNativeMessage(application, message),
+    lastError: () => chrome.runtime.lastError?.message,
+  },
+  settings,
+  extensionId: chrome.runtime.id,
+  log: console,
+});
 
-chrome.runtime.onMessage.addListener(createMessageListener({ store, downloadLyrics: lyrics.download }));
+chrome.runtime.onMessage.addListener(createMessageListener({ store, downloadLyrics: lyrics.download, audio }));
 // Learns Chrome's download folder when one of our lyrics downloads finishes. This wakes the worker
 // for every download in the browser; anything not ours returns at once.
 chrome.downloads.onChanged.addListener(lyrics.handleChanged);
 
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== CAPTURE_PORT) return;
-  // Only a content script, which runs in a tab, can ask for a capture of its tab.
+  if (port.name !== CAPTURE_PORT && port.name !== AUDIO_PORT) return;
+  // Only a content script, which runs in a tab, can ask for a capture of its tab or a song's audio.
   const tabId = port.sender?.tab?.id;
   if (tabId === undefined) {
     port.disconnect();
     return;
   }
-  captures.connect(port, tabId);
+  if (port.name === AUDIO_PORT) audio.connect(port);
+  else captures.connect(port, tabId);
 });
 chrome.debugger.onEvent.addListener(captures.handleEvent);
 chrome.debugger.onDetach.addListener(captures.handleDetach);

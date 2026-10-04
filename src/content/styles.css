@@ -312,3 +312,179 @@
 .pg-toast--error {
   border-color: hsla(4, 90%, 66%, 0.65);
 }
+
+/* The audio button (audioButton.ts), appended to YTM's player bar controls: a 40 px round icon
+   button with a 24 px icon, white at 70 % like YTM's own player bar icons (approximate: verify on
+   the live page). The player bar is dark in either colour scheme. data-state is idle, running,
+   done or error; while running the icon pulses and a badge shows the percent. */
+.pg-audio-btn {
+  --pg-audio-fg: hsla(0, 0%, 100%, 0.7);
+  --pg-audio-fg-hover: #fff;
+  --pg-audio-bg-hover: hsla(0, 0%, 100%, 0.1);
+  --pg-audio-focus: hsla(0, 0%, 100%, 0.7);
+  --pg-audio-done: hsl(142, 55%, 62%);
+  --pg-audio-error: hsl(4, 90%, 66%);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  margin: 0 4px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pg-audio-fg);
+  font: inherit;
+  line-height: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pg-audio-btn:hover {
+  background-color: var(--pg-audio-bg-hover);
+  color: var(--pg-audio-fg-hover);
+}
+
+.pg-audio-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--pg-audio-focus);
+}
+
+.pg-audio-btn svg {
+  display: block;
+  pointer-events: none;
+}
+
+.pg-audio-btn[data-state="running"] {
+  color: var(--pg-audio-fg-hover);
+}
+
+.pg-audio-btn[data-state="running"] svg {
+  animation: pg-busy-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.pg-audio-btn[data-state="done"] {
+  color: var(--pg-audio-done);
+}
+
+.pg-audio-btn[data-state="error"] {
+  color: var(--pg-audio-error);
+}
+
+.pg-audio-btn__badge {
+  position: absolute;
+  right: -4px;
+  bottom: 1px;
+  box-sizing: border-box;
+  min-width: 24px;
+  padding: 1px 3px;
+  border-radius: 6px;
+  background-color: hsl(0, 0%, 16%);
+  box-shadow: 0 0 0 1px hsla(0, 0%, 0%, 0.5);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
+}
+
+.pg-audio-btn__badge[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-audio-btn[data-state="running"] svg {
+    animation: none;
+    opacity: 0.55;
+  }
+}
+
+/* The confirm popover (confirmPopover.ts): the audio button's music-video warning and "Stop this
+   audio download?". In <body> and styled like the lyrics menu (same ground, border, radius, text);
+   confirmPopover.ts sets top/bottom/left. Below the toast, like the menu. */
+.pg-popover {
+  position: fixed;
+  z-index: 2147483100;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
+  margin: 0;
+  padding: 12px;
+  border: 1px solid hsla(0, 0%, 100%, 0.1);
+  border-radius: 11px;
+  background-color: hsla(0, 0%, 8%, 0.96);
+  backdrop-filter: blur(26px);
+  box-shadow:
+    rgba(0, 0, 0, 0.45) 0 12px 32px -10px,
+    inset rgba(255, 255, 255, 0.08) 0 1px 0 0;
+  color: hsla(0, 0%, 100%, 0.86);
+  color-scheme: dark;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pg-popover__text {
+  margin: 0 0 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pg-popover__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pg-popover__btn {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid hsla(0, 0%, 100%, 0.16);
+  border-radius: 7px;
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.35;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    background-color 140ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 140ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pg-popover__btn:hover {
+  background-color: hsla(0, 0%, 100%, 0.09);
+  color: hsla(0, 0%, 100%, 0.98);
+}
+
+.pg-popover__btn:focus-visible {
+  outline: 2px solid hsla(0, 0%, 100%, 0.7);
+  outline-offset: 1px;
+}
+
+.pg-popover__btn--primary {
+  border-color: transparent;
+  background-color: hsla(0, 0%, 100%, 0.9);
+  color: hsl(0, 0%, 8%);
+  font-weight: 600;
+}
+
+.pg-popover__btn--primary:hover {
+  background-color: #fff;
+  color: hsl(0, 0%, 4%);
+}

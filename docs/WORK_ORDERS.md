@@ -745,3 +745,26 @@ Re-ran the Python (44) and JS suites. The three security break-checks the permis
 classifier refused were checked by reading: the tests assert exact `%%` argv, refuse a
 sibling folder sharing a string prefix, and wait for both child pids to die. B9 used
 ~390k tokens; B8 ~360k.
+
+### B10 — 2026-10-04
+Built: `src/background/audio.ts` `createAudioRelay({ native, settings, extensionId, newRequestId?, log? })` -> `connect(port)`, `ping()`, `reveal()`; `hostErrorText()`;
+`messages.ts` (`AUDIO_PORT`, `AudioPortRequest`/`Reply`, `isAudioPortRequest`, `audio:ping`, `audio:reveal { path }`, `HostRequest`, `HostPong`, `NATIVE_HOST_NAME`); `requests.ts`
+(`RequestDeps.audio`); `sw.ts` (one onConnect for `capture` + `audio`, both tab-only). Content: `audioButton.ts` `mountAudioButton({ runtime, toaster, root?, nowPlaying?, log? })`,
+`confirmPopover.ts` `openConfirm()` (alertdialog), `main.ts` (one runtime wrapper and one toaster for both buttons), `styles.css`. Fake `test/helpers/fakeNative.ts`; tests `audio`,
+`audioButton`, `confirmPopover`; `sw`, `contentMain`, `requests`, `messages` extended (`sw.test`'s "not ours" port is now named `nope`: `audio` is ours).
+Choices / deviations:
+- One download per `audio` port. Stem checked (`stemProblem`) before the settings read and the host; a cancel before the request left answers `Cancelled` with no host.
+- Host replies for unknown/finished requestIds are dropped; malformed ones warned; a `done` without path or a bad `pong` ends the request as "The native host sent an answer this
+  extension does not understand." `stderrTail` goes to the worker console only. Disconnect without lastError reads as "Native host has exited.".
+- Reveal: the host answers reveal only on failure, so the worker sends `reveal` + `ping` with one requestId; the first reply decides (error = refused, pong = done).
+- Cancel = a popover ("Stop download" / "Keep downloading"), not a second click: a double click must never cancel. Popovers focus the dismiss button; Tab cycles; Esc dismisses.
+- The button follows the song: each check (child-list change in the bar, coalesced) asks `getNowPlaying()`, answers applied in ask order; a song change closes the popover.
+  Progress changes only a text node's data and attributes, which trigger no check. Toasts: "Audio saved: <path>", "Audio download cancelled", "Audio download failed: <why>".
+- Any known musicVideoType other than ATV warns (PODCAST_EPISODE too); null or "" does not.
+The next phase must know:
+- B11: `audio:ping` -> `{ ok: true, pong: { hostVersion, ytDlpVersion, ffmpegFound, problems } } | { ok: false, error }`, no timeout in the worker; store "" for no override (the
+  worker does not trim). Button: `ytmusic-player-bar .right-controls-buttons > button.pg-audio-btn[data-state]`, badge `.pg-audio-btn__badge`, popover `.pg-popover`.
+Left open:
+- **Reveal is refused in practice**: the host shows only files in folders it saved to in its own process, and the idle port is closed (ending the host) right after `done`,
+  so the click on the check mark meets a fresh host. Lead's choice: keep the port open a while after the last request, or let the host remember its folders across runs.
+- Host race: a `cancel` handled between `finish()`'s delete and its send gets "No running download" out first, and the worker takes it as the end. Fix in the host: send, then delete.

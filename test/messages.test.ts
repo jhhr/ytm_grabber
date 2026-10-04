@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CAPTURE_PORT, isCapturePortRequest, isExtensionRequest } from "../src/shared/messages";
+import { AUDIO_PORT, CAPTURE_PORT, isAudioPortRequest, isCapturePortRequest, isExtensionRequest } from "../src/shared/messages";
 
 const ID = "Synth3t1cK1";
 // Not video ids: wrong length, a character outside [A-Za-z0-9_-], a trailing newline, not a string.
@@ -45,6 +45,30 @@ describe("isExtensionRequest", () => {
   it("refuses what is not a request", () => {
     for (const value of [null, undefined, "capture:get", 1, [], [{ type: "capture:get", videoId: ID }], { videoId: ID }, { type: "capture:start", videoId: ID }, { type: "CAPTURE:GET", videoId: ID }]) {
       expect(isExtensionRequest(value), JSON.stringify(value)).toBe(false);
+    }
+  });
+});
+
+describe("audio requests", () => {
+  it("accepts audio:ping as it is and audio:reveal with a path", () => {
+    expect(isExtensionRequest({ type: "audio:ping" })).toBe(true);
+    expect(isExtensionRequest({ type: "audio:reveal", path: "C:\\Users\\me\\Downloads\\x [nKites0042x].opus" })).toBe(true);
+    for (const path of [undefined, "", 1, null, ["x"]]) expect(isExtensionRequest({ type: "audio:reveal", path }), String(path)).toBe(false);
+  });
+});
+
+describe("the audio port", () => {
+  it("is named audio", () => {
+    expect(AUDIO_PORT).toBe("audio");
+  });
+
+  it("accepts start with a video id and a stem, and cancel", () => {
+    expect(isAudioPortRequest({ type: "start", videoId: ID, stem: `x [${ID}]` })).toBe(true);
+    expect(isAudioPortRequest({ type: "cancel" })).toBe(true);
+    for (const videoId of BAD_IDS) expect(isAudioPortRequest({ type: "start", videoId, stem: `x [${ID}]` })).toBe(false);
+    for (const stem of [undefined, "", 1, null, ["x"]]) expect(isAudioPortRequest({ type: "start", videoId: ID, stem }), String(stem)).toBe(false);
+    for (const value of [null, "start", "cancel", { type: "progress", percent: 1 }, { type: "audio:reveal", path: "x" }, [{ type: "cancel" }]]) {
+      expect(isAudioPortRequest(value), JSON.stringify(value)).toBe(false);
     }
   });
 });
