@@ -502,6 +502,7 @@ The work is done by a line of phase agents, one build phase each, run by a lead 
 | Tony test data | Linked, never copied (§4 Phase 2b) | User's instruction |
 | Filename stem source | Always from YTM's now-playing info (page bridge `title`/`author` + `videoId`), sent by the content script with every download request and re-sanitised by the SW (and by the host for audio). Capture metadata (`song`/`artist`) is used only when the capture's videoId is not the playing one | BL's API metadata can spell artist/title differently from YTM, which would break "audio and lyrics share one stem" |
 | Per-song subfolder for audio | Host protocol `download` gets `subfolder?: boolean`; the host itself creates `<outputDir>\<sanitised stem>\` (one level, inside a validated existing `outputDir`) | The host only accepts existing directories, and the subfolder does not exist yet |
+| Reveal after the host exits | The host remembers the folders it saved to in `native-host/saved-folders.json` (most recent 200) and allows `reveal` inside those, across runs | The worker closes the native port when idle (B10), so "folders written this session" would refuse every reveal; a remembered list keeps the rule's intent |
 | Lyrics button placement | In `.blyrics-dock__inner` after `__controls`, as specified; if B8 shows BL's dock layout pushes it out of view, revisit | §3.5 |
 | Tony pick gaps (§3.2.3) | `golyrics` timed by `line` or `plain` drops to group 6 (first in it); with `word`/`syllable`/`unknown` it stays first. A Unison TTML of `unknown` timing goes to group 6, not 2. B4, where the spec is silent: `binimum` TTML whose own `itunes:timing` says Word (no `timingType`) counts as group 3; every other TTML without word timing goes to group 6 (golyrics, binimum, Unison); Unison's line LRC comes last in group 7 | The user wants word timing; "golyrics first" assumed it |
 
@@ -520,6 +521,6 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest] — Done 2026-10-04 (e2c61e3)
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible] — Done 2026-10-04 (ab29229)
 - **B9** Native host + installer scripts + host tests [Phase 5] — Done 2026-10-04 (c1e471d)
-- **B10** Audio button + page bridge + SW audio relay [Phase 6] — Done 2026-10-04
+- **B10** Audio button + page bridge + SW audio relay [Phase 6] — Done 2026-10-04 (21c504c)
 - **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part]
 - **B12** Documentation pass: README, `docs/spike-notes.md` 👤 checklist, this plan brought up to date [Phase 7, rest]

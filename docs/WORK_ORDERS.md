@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B9)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B10)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -210,6 +210,12 @@ your work in the tree and list every file you created or changed in your report.
   alter (`$NAME` expansion). Stdin EOF (port closed) kills running downloads. Tests:
   `python3 -m unittest discover -s native-host -p "test_*.py"` (fake yt-dlp in
   `test_host.py`). `install.ps1` / `uninstall.ps1` never ran (no PowerShell here).
+- Audio (B10): `src/background/audio.ts` `createAudioRelay({ native, settings, ... })`
+  (one shared `connectNative` port, closed when idle; `ping()` via `sendNativeMessage`;
+  `reveal()`); `sw.ts` routes the `audio` port (`AUDIO_PORT`) and `audio:ping` /
+  `audio:reveal` (types in `messages.ts`, incl. `HostPong`, `NATIVE_HOST_NAME`).
+  `src/content/audioButton.ts` (player bar, per-video states, warning for any known
+  non-ATV `musicVideoType`), `confirmPopover.ts`. Fake: `test/helpers/fakeNative.ts`.
 - Fakes: `test/helpers/fakeDebugger.ts` (`FAKE_TOKEN`, `FAKE_KEY_ID`, BL request
   builders), `fakePort.ts`, `captureHarness.ts`; `test/sw.test.ts` imports the real
   `sw.ts` under a stubbed `chrome` - extend it when you add SW wiring.
@@ -229,7 +235,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b, B8, B9. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b, B8, B9, B10. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
@@ -430,10 +436,22 @@ The risky phase. Read §3.3 in full including the lead decision inside it.
 - Tests: fake native port (progress, done, error, disconnect + `lastError`), button states,
   OMV warning, re-insertion.
 
-### B11 — Options page + end-to-end audio (spec §3.9)
+### B11 — Host follow-ups + options page + end-to-end audio (spec §3.8, §3.9)
 
+- Host follow-ups found by B10 (lead decisions, PLAN 7.1): (1) **reveal across host
+  runs**: the worker closes the native port when idle, so the host process that saved a
+  file is gone by the time the user clicks the check mark and `reveal` is always refused.
+  The host keeps the folders it saved to in a small state file next to the script
+  (`saved-folders.json`, gitignored; most recent 200; written atomically with
+  `os.replace`; unreadable/corrupt → treated as empty) and checks `reveal` against it,
+  with the same `commonpath` rules. (2) **cancel/finish race**: a `cancel` arriving
+  between `finish()` removing a download and sending its reply makes the host answer
+  "No running download…" before the real `done`, and the worker takes the first as the
+  end. Send the final reply before the download leaves the map (or make the late cancel
+  silent); a test that forces the interleaving.
 - `src/options/options.ts` + `static/options.html`: every setting, learned folder with
-  override, Test connection (`ping`).
+  override (store "" for none; trim), Test connection (`audio:ping`, with a timeout on
+  the page's side — the worker has none).
 - e2e: register the real Python host for the test profile (Linux Chromium reads
   `<user-data-dir>/NativeMessagingHosts/`) with a config pointing at the fake yt-dlp;
   audio button → file appears; options Test connection shows versions. Same time-box rule
