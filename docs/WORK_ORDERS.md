@@ -109,14 +109,28 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, before B1)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B1)
 
-Empty repository: `LICENSE` (GPL-3.0), `PLAN.md` (spec), `docs/WORK_ORDERS.md` (this
-file). Branch `claude/elegant-albattani-ovdzz4`.
+- Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
+  `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
+  `allowJs`; `npm run typecheck` runs both. Vitest runs `test/**/*.test.ts` only.
+- `build.mjs` → `dist/` (`--outdir <dir>`, `--watch`); `test/build.test.ts` checks every
+  file the manifest references exists — extend it when you add an entry or static file.
+- Manifest per §3.1 with a fixed `key`: **extension ID `mengelecikhhdpjdebjpokcmhdkhjobj`**.
+- Entry stubs only: `src/background/sw.ts`, `src/content/main.ts`,
+  `src/content/page-bridge.ts`, `src/options/options.ts`, `src/content/styles.css`.
+- `src/shared/filenames.ts`: `sanitizeFilename()`, `buildStem({artist,title,videoId})`
+  (throws on a bad id), `isVideoId()`, `MAX_STEM_LENGTH = 150` (UTF-16 units). Rules cover
+  Windows **and** `chrome.downloads` (stricter). Contract: `test/fixtures/sanitize-vectors.json`.
+- Platform traps found so far (everyone):
+  - `\uXXXX` escapes written through the Write/Edit tools arrive as the literal character.
+    In code use `\u{XXXX}` or `\xNN`, which survive. Keep source files ASCII.
+  - Chromium in this container runs under the C locale and then rejects every non-ASCII
+    download filename: launch it with `LANG=C.UTF-8`.
 
 ## 4. Phases
 
-Done: none.
+Done: B1.
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
@@ -341,3 +355,8 @@ The next phase must know:
   broke a regex); in code use the `\u{...}` or `\xNN` forms, which survive.
 Left open: with the per-song subfolder, `<dir>\<stem>\<stem><ext>` can exceed Windows' 260-char
 MAX_PATH for near-cap stems (150 + 1 + ~170 + dir); typical stems are far shorter.
+
+### Lead after B1 — 2026-10-04 — 0348fed
+Reviewed `filenames.ts`, re-ran typecheck/tests/build (82 passed); committed. B1 used ~260k
+tokens: later phases, stay on your work order — probe Chromium only where it decides
+something your phase builds. Traps moved into section 3.
