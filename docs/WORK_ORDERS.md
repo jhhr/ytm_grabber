@@ -360,3 +360,28 @@ MAX_PATH for near-cap stems (150 + 1 + ~170 + dir); typical stems are far shorte
 Reviewed `filenames.ts`, re-ran typecheck/tests/build (82 passed); committed. B1 used ~260k
 tokens: later phases, stay on your work order — probe Chromium only where it decides
 something your phase builds. Traps moved into section 3.
+
+### B2 — 2026-10-04
+Built: `src/shared/sse.ts` `parseSse()` (BL's parseSSEMessage rule for rule, plus the BOM drop BL's
+TextDecoder does); `src/shared/sources.ts` `extractSources(events, unisonRaw?)` → `{ metadata, sources }`,
+`ttmlTiming()`, `SOURCE_FORMATS`; fixtures `synthetic-stream.txt` (all 7 providers incl. kugou; `:` comment
+lines document the shape) + `synthetic-unison.json` (richsync TTML); tests `sse.test.ts`, `sources.test.ts`.
+Choices / deviations:
+- `LyricsSource.format` (`ttml|lrc|enhanced-lrc|qrc|plain|json`) is the dispatch key; Unison richsync LRC is
+  `enhanced-lrc`. `SOURCE_FORMATS` maps the 8 fixed ids (Unison's format follows its response).
+- golyrics/binimum text with no `<tt>` start tag, or qq/kugou whose nested JSON does not decode, becomes a raw
+  `.<provider>.json` source (format `json`, no blDisplayName): never a `.ttml` that is not TTML.
+- Unknown provider id: lower-cased, runs outside `[a-z0-9_-]` → `_`, max 40 chars, `_`/`-` trimmed, `unknown`
+  if empty; a known id gets `-raw` (a stream provider "unison" cannot replace the Unison source).
+- Timing: qq `word`; Unison richsync `word` (syllable vs word cannot be told from its metadata); Unison LRC
+  not richsync `line` (as BL); TTML without `itunes:timing` `unknown`; binimum without timingType → TTML attr.
+- Blank strings count as empty. Metadata: non-blank strings, finite duration (numeric strings too), videoId
+  only if `isVideoId`; last metadata event wins; a repeated provider block wins per source id.
+The next phase must know:
+- Fixture: golyrics single-line Apple TTML, plain seconds below 60 s and `m:ss.mmm` from 1:00 (my belief
+  about Apple, unverified); binimum AMLL-like `mm:ss.mmm`, `x-bg` span, no `itunes:timing`; wordByWord in
+  separator style with a `[bg:]` part; QRC opens with 2 credit lines; kugou LRC uses CRLF + a title line.
+- BL's own parsers run over the fixture as intended: `node $REF/b2/check-bl.mjs <dir with the fixtures> -v`
+  (`$REF/b2/bparsers` is a runnable copy of @braccato/parsers; compare converters against it).
+- Real metadata fields beyond song/artist/album/duration are unknown: the fixture has no videoId.
+Left open: the real `done` payload (`{}` used); `mime` values untested against Chrome's download naming.
