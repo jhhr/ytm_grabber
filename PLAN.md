@@ -492,12 +492,14 @@ The work is done by a line of phase agents, one build phase each, run by a lead 
 Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in brackets.
 
 - **B1** Scaffold + `filenames.ts` [Phase 1, part of 2] — Done 2026-10-04 (0348fed)
-- **B2** `sse.ts` + `sources.ts` + synthetic fixture [Phase 2] — Done 2026-10-04
+- **B2** `sse.ts` + `sources.ts` + synthetic fixture [Phase 2] — Done 2026-10-04  (c63e14d)
 - **B3** `ttml.ts` writer + enhanced-LRC word converter + Tony-rules test reader [Phase 2b, part]
 - **B4** QRC converter + `tonyPick.ts` + `blyrics.ts` [Phase 2b, rest]
-- **B5** Capture manager + store + settings, always-attached mode [Phase 3]
+- **B5a** Messages + settings + capture store [Phase 3, part]
+- **B5b** Capture manager, always-attached mode [Phase 3, rest]
 - **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part]
-- **B7** Lyrics button + popover (content script) [Phase 4, rest]
+- **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part]
+- **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest]
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible]
 - **B9** Native host + installer scripts + host tests [Phase 5]
 - **B10** Audio button + page bridge + SW audio relay [Phase 6]

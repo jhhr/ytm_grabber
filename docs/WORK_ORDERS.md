@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B1)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B2)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -122,6 +122,22 @@ your work in the tree and list every file you created or changed in your report.
 - `src/shared/filenames.ts`: `sanitizeFilename()`, `buildStem({artist,title,videoId})`
   (throws on a bad id), `isVideoId()`, `MAX_STEM_LENGTH = 150` (UTF-16 units). Rules cover
   Windows **and** `chrome.downloads` (stricter). Contract: `test/fixtures/sanitize-vectors.json`.
+- `src/shared/sse.ts`: `parseSse(text)` → `SseEvent[]` (`{ event, data }` or
+  `{ event, data: null, error, rawData }`).
+- `src/shared/sources.ts`: `extractSources(events, unisonRaw?)` → `{ metadata, sources }`;
+  `LyricsSource { id, provider, blDisplayName?, label, timing, format, ext, mime,
+  content }`; `format` is the dispatch key (`ttml | lrc | enhanced-lrc | qrc | plain |
+  json`; Unison richsync LRC is `enhanced-lrc`); `SOURCE_FORMATS` for the 8 fixed ids;
+  `ttmlTiming()`. Undecodable payloads become `.<provider>.json` sources, never a `.ttml`
+  that is not TTML. Metadata: `song, artist, album, duration, videoId?`.
+- Fixtures (invented song "Northbound Kites" by "Marrow & Tin"):
+  `test/fixtures/synthetic-stream.txt` (all 7 providers; `:` comment lines explain the
+  shape; Musixmatch word-by-word in separator style with a `[bg:]` part; QRC opens with 2
+  credit lines and has `thou`+`sand` and parentheses; kugou LRC uses CRLF) and
+  `test/fixtures/synthetic-unison.json` (richsync TTML). Byte-exact on disk.
+- BL's real parsers, runnable: `node $REF/b2/check-bl.mjs <dir with fixtures> -v`, and
+  `$REF/b2/bparsers` (a runnable copy of `@braccato/parsers` 0.3.2) to compare converter
+  output against what BL itself parses.
 - Platform traps found so far (everyone):
   - `\uXXXX` escapes written through the Write/Edit tools arrive as the literal character.
     In code use `\u{XXXX}` or `\xNN`, which survive. Keep source files ASCII.
@@ -130,7 +146,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1.
+Done: B1, B2. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
@@ -216,27 +232,41 @@ Done: B1.
   ids map (§3.2 bullet; YouTube / YouTube Captions → not downloadable, with reason).
 - Tests: QRC rules one by one; every pick branch of §3.2.3; Tony checks; map lookups.
 
-### B5 — Capture manager + store + settings (spec §1.2, §1.3, §3.3, §3.4, §4 Phase 3)
+### B5a — Messages, settings, capture store (spec §3.3 steps 1–6 for the protocol, §3.4, §3.9)
 
-The risky phase. Read §3.3 and §3.4 in full including the lead decisions inside them.
+- `src/shared/messages.ts`: the typed content ⇄ SW protocol for the whole extension so
+  far: `capture:get { videoId }` → summary or none; capture over a
+  `chrome.runtime.connect` port named `capture` (content posts `start { videoId }`; SW
+  posts `ready` after `Network.enable`, then `done { summary }` / `error { reason }`);
+  `lyrics:download` (B6 fills in the handler). Leave audio messages to B10.
+- Capture summary (what the content script gets): videoId, capturedAt, metadata,
+  bodySource, source summaries (id, label, timing, format, ext, size, blDisplayName) and
+  the Tony pick summary — never contents. The Tony pick does not exist until B4 is
+  committed; if B4 is done, use `pickForTony`, else leave a typed slot.
+- `src/shared/settings.ts`: `captureMode` (`"on-demand"` default | `"always"`),
+  `perSongSubfolder` (false), `downloadDirOverride` (""), `debugCapture` (false),
+  `learnedDownloadDir` (""), in `chrome.storage.local`; defaults, typed get/set, change
+  subscription; storage injected for tests.
+- `src/background/store.ts` per §3.4 incl. the lead decision: raw inputs only, sources
+  derived on read, LRU by count (30) and size (~8 MB), quota error → evict oldest, retry
+  once. Storage area injected.
+- Tests: settings defaults/merge; store put/get/derive, both evictions, quota retry,
+  `capture:get` summary shape; a summary never contains source contents.
 
-- `src/shared/messages.ts` (typed content ⇄ SW protocol; capture over a
-  `chrome.runtime.connect` port named `capture`: SW posts `ready` after `Network.enable`,
-  content clicks refresh, SW posts `done` / `error`), `src/shared/settings.ts`
-  (`captureMode`, `perSongSubfolder`, `downloadDirOverride`, `debugCapture`; defaults;
-  `chrome.storage.local`), `src/background/capture.ts`, `src/background/store.ts`, wiring
-  in `sw.ts` (all listeners registered synchronously at top level) and a `captureNow(tabId)`
-  dev helper on `globalThis`.
-- Capture summaries sent to the content script carry source *summaries* (id, label,
-  timing, ext, size, blDisplayName) and the Tony pick summary, not contents.
-- Always-attached mode behind `captureMode`, attaching to music.youtube.com tabs on load
-  and detaching when switched off.
+### B5b — Capture manager (spec §1.2, §1.3, §3.3, §4 Phase 3)
+
+The risky phase. Read §3.3 in full including the lead decision inside it.
+
+- `src/background/capture.ts`: on-demand capture per §3.3 with the three body paths,
+  injected `chrome.debugger`-like API; always-attached mode behind `captureMode`
+  (attach to music.youtube.com tabs on load, capture passively, detach when switched
+  off); wiring in `sw.ts` (all listeners registered synchronously at top level; the
+  `capture` port; `capture:get`) and a `captureNow(tabId)` dev helper on `globalThis`.
 - Tests with a fake `chrome.debugger`: all three body paths (+ base64); Unison 200/404 and
   the 2 s grace; timeout; `onDetach` mid-capture; attach failure message; a second request
   joins the first; `verify-turnstile` and `/lyrics/<id>/vote` ignored; videoId mismatch;
   detach always called; **the token and `x-key-id` value never appear in stored data,
   logs, or messages** (assert on everything the fake storage/console/port received).
-  Store: count and size eviction, quota error retry, sources derived on read.
 
 ### B6 — Lyrics downloads + menu model (spec §3.5 menu items, §3.6, §7.1 stem decision)
 
@@ -250,18 +280,33 @@ The risky phase. Read §3.3 and §3.4 in full including the lead decisions insid
 - Tests: every menu branch; filenames with/without subfolder; data-URL encoding of
   non-ASCII; learned-dir extraction; download handler with a fake `chrome.downloads`.
 
-### B7 — Lyrics button + popover + page bridge (spec §1.3, §1.4, §3.5, §3.7 first bullet)
+### B7a — Page bridge + now playing + lyrics button placement (spec §1.4, §3.5 first two bullets, §3.7 first bullet)
 
-- `src/content/main.ts`, `lyricsButton.ts`, `menu.ts`, `nowPlaying.ts` (asks the page
-  bridge; isolated-world fallback), `styles.css` (own `pg-` classes only), and
-  `src/content/page-bridge.ts` complete (§3.7 first bullet; `musicVideoType` included).
-- Flow: `capture:get` → if missing, "Capturing…", open the capture port, click
-  `.blyrics-dock__refresh` on `ready`, render the menu on `done`; missing refresh button
-  → the message in §3.5; fallback floating button; offset toast.
+- `src/content/page-bridge.ts` complete (§3.7 first bullet; `musicVideoType` included;
+  reply `detail` is a JSON string), `src/content/nowPlaying.ts` (asks the bridge with a
+  short timeout; isolated-world fallback from the URL `v` param + player bar text; builds
+  the stem with `buildStem`, catching its throw), `src/content/lyricsButton.ts`
+  (debounced MutationObserver; one `pg-` button in `.blyrics-dock__inner` after
+  `__controls`; re-insert; fallback floating button in `#side-panel` ~3 s after BL lyrics
+  appear without a dock), `src/content/main.ts` bootstrap, `styles.css` for the button.
+  Clicking calls a handler B7b provides (a stub that logs is fine).
+- Add jsdom as a dev dependency.
 - Tests (jsdom): insertion after `__controls`; survives `__controls` replacement and its
-  own removal; never inside `__controls`; fallback button; menu render, disabled items,
-  Esc/outside close, flip by `data-position`; flow with a fake port; bridge reply is a JSON
-  string.
+  own removal; never inside `__controls`; one button only; fallback button appears and
+  goes away when a dock appears; bridge reply JSON string; nowPlaying fallback.
+
+### B7b — Lyrics menu popover + capture flow (spec §1.3, §3.5)
+
+- `src/content/menu.ts` (renders the B6 menu model in a popover appended to
+  `document.body`, positioned at the button, flipped by the dock's `data-position`;
+  Esc/outside-click close; disabled items show their reason), the click flow
+  (`capture:get` → if missing "Capturing…", open the `capture` port, click
+  `.blyrics-dock__refresh` on `ready`, render on `done`, error states; missing refresh
+  button → the §3.5 message; "Re-capture"), downloads via `lyrics:download`, the offset
+  toast.
+- Tests (jsdom): menu render, disabled items, Esc/outside close, flip; flow with a fake
+  port incl. error and missing-refresh; joining when clicked twice; offset toast only when
+  non-zero.
 
 ### B8 — End-to-end test in Chromium (new; see §7)
 
