@@ -295,6 +295,8 @@ Edge cases to handle:
 
 *(B5b, where this section is silent: a non-2xx stream response is never the body; after a first 403 the capture waits for BL's retry with a new token (BL retries once), and any other failure ends it with the HTTP status or Chrome's `net::` error, unless another stream request is still running. A 2xx stream cancelled after its `done` event counts as complete. Unison is paired with the stream by its `v` parameter; the grace is ≤ 2 s for a Unison request to appear, then ≤ 2 s from then for it to finish. A session left by an earlier service worker shows as attach failing while a `Network.enable` command succeeds (only the attaching extension can send commands): it is taken over; at start-up every attached tab from `debugger.getTargets()` without a live session is detached (in always mode, YouTube Music tabs are kept and taken over instead).)*
 
+*(B8, Chromium 141 end to end, answering Phase 0's question: BL reads the stream with `response.body.getReader()`, and for such a fetch Chrome ends the request with `Network.loadingFailed { canceled: true, errorText: "net::ERR_ABORTED" }` when the body is complete, never `loadingFinished`; `Network.getResponseBody` then answers "No data found for resource with given identifier", so path (a) never delivers. Path (b) does: `Network.streamResourceContent` at `responseReceived` plus every `dataReceived` `data` is the stream byte for byte. No `eventSourceMessageReceived` comes (fetch, not EventSource). Real captures therefore have `bodySource: "stream"`, through the "cancelled after its `done` event" rule above: the stream's `event: done` is what marks it complete. Read with `.text()`, the same fetch ends with `loadingFinished` and `getResponseBody` works.)*
+
 **Infobar:** Chrome shows "*YTM Practice Grabber* started debugging this browser" while attached. On-demand mode keeps that to a few seconds. It can be suppressed entirely by starting Chrome with `--silent-debugger-extension-api` (add to the Chrome shortcut's target on Windows) — document this in the README.
 
 ### 3.4 Capture store (`background/store.ts`)
@@ -319,6 +321,8 @@ Edge cases to handle:
 
 *(B7b, where this section is silent: the offset note comes only with files of the playing song's capture, since BL's offset belongs to the song it shows. Without the refresh button, always-capture mode still starts the capture and waits for the next lyrics BL loads. Clicks while a click's flow runs are ignored; a click on the button whose menu is open closes it. A `done` for another video asks again what is playing, in case the song changed during the capture.)*
 
+*(B8, Chromium 141: after the extension is reloaded, a tab's old content script loses `chrome.runtime` altogether, so calls fail with a TypeError rather than "Extension context invalidated"; `main.ts` reports that as the reload ("reload this tab"). A capture running at the reload sees its port close while `chrome.runtime` and its id are still there and `lastError` is empty, so it says "The extension's background stopped; try again"; the next click says to reload the tab.)*
+
 ### 3.6 Lyrics downloads (`background/downloads.ts`)
 
 - `chrome.downloads.download({ url: "data:<mime>;charset=utf-8," + encodeURIComponent(content), filename: [subfolder/]<stem><ext>, conflictAction: "uniquify", saveAs: false })` (service workers have no `URL.createObjectURL`; data URLs are fine at these sizes).
@@ -326,6 +330,8 @@ Edge cases to handle:
 - Option **per-song subfolder** (default off): `<stem>/<stem><ext>` for lyrics and `<downloadDir>\<stem>\` for audio. Useful with Tony, whose Import Lyrics dialog opens in the reference audio's folder: save the Moises stems into the same subfolder and the `.ttml` is right there.
 
 *(B6: `encodeURIComponent` throws on a lone surrogate, which captured JSON can carry, so the URL is `data:<mime>;charset=utf-8;base64,` + base64 of the `TextEncoder` bytes (UTF-8, no BOM; a lone surrogate becomes U+FFFD). The worker refuses a stem that `sanitizeFilename()` would change or that does not end with ` [videoId]`, rather than changing it. The relative path of each download is remembered in memory by download id (not across worker restarts); the folder is learned only from a completed download whose `byExtensionId` is ours and whose path ends with the folders we asked for. Lyrics always go to Chrome's download folder: `downloadDirOverride` is for audio only.)*
+
+*(B8, Chromium 141 end to end: files land under the names asked for in the profile's download folder, `downloads.search` reports their absolute paths and `learnedDownloadDir` is that folder. A 1,750,000-byte raw stream, a data URL of 2,333,373 characters (over the 2 MiB `url::kMaxURLChars`), saved whole: that limit does not stop `chrome.downloads` here.)*
 
 ### 3.7 Audio button (`content/audioButton.ts`, `content/page-bridge.ts`)
 
@@ -420,6 +426,7 @@ Each phase ends with `npm run typecheck && npm test` green and a short note in `
    - If `getResponseBody` returns the full SSE text → use it (expected; the DevTools Response tab shows it).
    - If not (event-stream bodies are sometimes not buffered) → on `responseReceived` call `Network.streamResourceContent` and accumulate the base64 `data` from `Network.dataReceived` events.
    - Last resort → `Fetch.enable` with a `Response`-stage pattern for that URL, `Fetch.getResponseBody`, then `Fetch.fulfillRequest` with the same body (BL then gets the whole stream at once; acceptable).
+   - *(B8, Chromium 141 against a mock: `getResponseBody` does **not** return it (BL's `getReader()` fetch ends as cancelled, with no data kept); `streamResourceContent` + `dataReceived` does. See the B8 note in §3.3; the 👤 check on real Chrome still applies.)*
 2. **Selectors on the live page** 👤: `.blyrics-dock__inner`, `.blyrics-dock__refresh`, `.blyrics-dock__source-name`; `ytmusic-player-bar .right-controls-buttons`; `#movie_player.getVideoData()` and `getPlayerResponse().videoDetails.musicVideoType` from the MAIN world; whether the URL `v` param tracks queue changes.
 3. **yt-dlp flags** 👤: run the §3.8 command by hand on one video; confirm progress lines, the final path line, and that `-x` works with my ffmpeg.
 
@@ -507,7 +514,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part] — Done 2026-10-04 (924b11c)
 - **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part] — Done 2026-10-04 (026d0d1)
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest] — Done 2026-10-04 (e2c61e3)
-- **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible]
+- **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible] — Done 2026-10-04
 - **B9** Native host + installer scripts + host tests [Phase 5]
 - **B10** Audio button + page bridge + SW audio relay [Phase 6]
 - **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part]

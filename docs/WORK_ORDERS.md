@@ -676,3 +676,27 @@ The next phase must know:
 - Tests: `vi.resetModules()` gives main.ts its own copy of menu.ts (check the DOM, not `currentMenu()`); in jsdom tests Vite rewrites
   `new URL("../x", import.meta.url)` to an http: URL, so read fixtures by path. B10: pass main.ts's toaster in rather than making another.
 Left open: the menu is not moved on resize or scroll. Whether `runtime.connect` throws or disconnects once the context is invalidated is handled both ways, unverified.
+
+### B8 — 2026-10-04
+Built: `test-e2e/` + `npm run test:e2e` (build, then `vitest.e2e.config.ts`; typechecked via `test/tsconfig.json`), `playwright-core` 1.56.1 exact. `server.ts`: one HTTPS server for the
+three hosts (cert from openssl at start, `certs.ts`), fixture streamed in delayed chunks (cuts inside a block and inside the multi-byte char), `plan` = 403 first /
+large stream / Unison 404 / hold, every request recorded. `page/`: MAIN-world mock (blPage.ts dock, BL's refresh: `--busy`, form POST with `token=`, Unison with `x-key-id`,
+read to the end, `replaceWith` controls), `#movie_player`, player bar. `browser.ts`, `harness.ts` (SW console and CDP-event recorders, storage, menu, downloads), `secrets.ts`
+(needles incl. base64 at 3 alignments), `lyrics.e2e.test.ts`: 13 tests, ~20 s.
+Findings (Chromium 141, headless new):
+- **bodySource is "stream".** BL's `getReader()` fetch ends as `loadingFailed {canceled, net::ERR_ABORTED}`, never `loadingFinished`; `getResponseBody` says "No data found";
+  `streamResourceContent` + `dataReceived` is byte-exact; no `eventSourceMessageReceived`. Captures succeed only via the "cancelled after `done`" rule (PLAN 3.3 note).
+- Downloads: Playwright's `allowAndName` saves GUID names in its artifacts dir (and the extension learns that dir). `Browser.setDownloadBehavior {behavior: "default"}` + the
+  profile's `download.default_directory` gives real names and paths; learned dir = download dir. ("allow" + `downloadPath` works too.)
+- A 2,333,373-char data URL (1.75 MB raw stream) saves whole: no 2 MiB cap on `chrome.downloads` here.
+- Extension reloaded: the old content script loses `chrome.runtime` (TypeError, not "context invalidated"). Fixed in `main.ts` (wrappers + `lastError`; unit test in
+  `contentMain.test.ts`, seen failing). Mid-capture the port closes while the context still looks alive: "background stopped; try again", next click "reload this tab".
+- Everything else as designed: button after `__controls` survives replacement; menu lists all 9 sources + Unison; Tony file = golyrics TTML byte for byte; raw = sent bytes;
+  converted Musixmatch TTML reads back (tonyReader) as the B3 golden; second click: no request, no attach; always mode stores passively; 403 retry captured; no secret in
+  session/local/sync storage, SW or page console (all worlds) or files, while the server log has them.
+The next phase must know:
+- B11: reuse `browser.ts`/`harness.ts`; the profile's `Default/Preferences` is written before launch (put `NativeMessagingHosts/` next to it). Playwright reports no SW console
+  (wrap it, `recordWorkerConsole`) and no new SW after `chrome.runtime.reload()` (it starts lazily). `getTargets()` shows `attached` for tabs Playwright holds.
+- Tests run in order in one browser and build on the first capture; `E2E_MENU_SCREENSHOT=<file.png>` keeps the menu screenshot.
+Left open: the mock dock's CSS approximates BL's; the floating anchor in YTM's real `#side-panel` is unverifiable here. The user's newer Chrome may behave differently: the 👤
+check of bodySource (debug log "using ...") stays. A real stream without `event: done` would fail as "cancelled" (BL's API sends it, per the user's capture).

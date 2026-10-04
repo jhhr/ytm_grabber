@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mock YouTube Music (YTM Practice Grabber e2e)</title>
+<style>
+  /* A rough YouTube Music layout, so that the extension's button and menu can be seen in place.
+     The dock rules are an approximation of Better Lyrics' layout (absolute dock in the side
+     panel, a flex row of 28 px controls), written for this page; they are not BL's stylesheet. */
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #030303; color: #fff; font: 14px/1.4 Roboto, Arial, sans-serif; }
+  #page { position: absolute; inset: 0 0 72px 0; display: flex; }
+  #main-panel { flex: 1; display: flex; align-items: center; justify-content: center; }
+  #movie_player { width: 360px; height: 360px; border-radius: 8px; background: linear-gradient(135deg, #2b3a55, #6b4f7a); }
+  #side-panel { position: relative; width: 460px; background: #0b0b0b; overflow: hidden; }
+  #tab-renderer { height: 100%; box-sizing: border-box; padding: 24px 24px 96px; overflow: auto; }
+  .blyrics-container > div { font-size: 26px; font-weight: 700; }
+  .blyrics-dock { position: absolute; z-index: 50; }
+  .blyrics-dock[data-position="bottom-right"] { top: calc(100% - 64px); left: 100%; }
+  .blyrics-dock[data-position="top-right"] { top: 64px; left: 100%; }
+  .blyrics-dock__inner { display: flex; align-items: center; gap: 4px; padding: 8px; border-radius: 14px; background: hsla(0, 0%, 100%, 0.06); transform: translateX(-100%); white-space: nowrap; }
+  .blyrics-dock__controls { display: flex; align-items: center; gap: 4px; opacity: 0.72; }
+  .blyrics-dock__inner:hover .blyrics-dock__controls { opacity: 1; }
+  .blyrics-dock__control, .blyrics-dock__offset-step { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: none; border-radius: 9px; background: transparent; color: hsla(0, 0%, 100%, 0.6); font: inherit; }
+  .blyrics-dock__source, .blyrics-dock__offset { display: inline-flex; align-items: center; gap: 4px; color: hsla(0, 0%, 100%, 0.82); }
+  .blyrics-dock__source-position { color: hsla(0, 0%, 100%, 0.5); }
+  ytmusic-player-bar { position: fixed; left: 0; right: 0; bottom: 0; height: 72px; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; background: #212121; }
+  ytmusic-player-bar .byline { color: hsla(0, 0%, 100%, 0.7); }
+  ytmusic-player-bar .right-controls-buttons { display: flex; gap: 8px; min-width: 120px; min-height: 40px; }
+</style>
+</head>
+<body>
+<script src="/e2e/mock-ytm.js"></script>
+</body>
+</html>

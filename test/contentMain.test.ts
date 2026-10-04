@@ -7,6 +7,7 @@ import { TOAST_CLASS } from "../src/content/toast";
 import { NOW_PLAYING_EVENT, WHAT_IS_PLAYING_EVENT, decodeRequest, encodeReply } from "../src/shared/bridgeProtocol";
 import { addPlayerPage, mountDock } from "./helpers/blPage";
 import { fixtureSummary } from "./helpers/captureSummary";
+import { FakePort } from "./helpers/fakePort";
 import { FakeStorageArea } from "./helpers/fakeStorage";
 
 const ID = "nKites0042x";
@@ -25,7 +26,7 @@ function answerWhatIsPlaying(): void {
   });
 }
 
-it("mounts one lyrics button per page however often it is injected; a click opens the menu of the stored capture", async () => {
+it("mounts one lyrics button per page however often it is injected; a click opens the menu of the stored capture; after a reload it says to reload the tab", async () => {
   const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
   const sendMessage = vi.fn(async () => ({ summary: fixtureSummary(ID) }));
   const connect = vi.fn();
@@ -62,4 +63,22 @@ it("mounts one lyrics button per page however often it is injected; a click open
   button.click();
   await vi.waitFor(() => expect(document.querySelector(`.${TOAST_CLASS}`)?.textContent).toBe("The extension was reloaded: reload this tab"));
   expect(document.querySelector(`.${MENU_CLASS}`)).toBeNull();
+
+  // What Chromium 141 does instead (seen in the B8 end-to-end test): it takes chrome.runtime away
+  // from the orphaned script. First mid-capture, where the port is then closed (reading lastError
+  // in onDisconnect must not throw), then on a click.
+  const toast = document.querySelector<HTMLElement>(`.${TOAST_CLASS}`)!;
+  toast.textContent = "";
+  const port = new FakePort("capture");
+  sendMessage.mockImplementation(async () => ({ summary: null }) as never);
+  connect.mockImplementation(() => port);
+  button.click();
+  await vi.waitFor(() => expect(port.types()).toEqual(["start"]));
+  vi.stubGlobal("chrome", { storage: { local: new FakeStorageArea({ kind: "local" }) } });
+  port.remoteDisconnect();
+  await vi.waitFor(() => expect(toast.textContent).toBe("The extension was reloaded: reload this tab"));
+  toast.textContent = "";
+  button.click();
+  await vi.waitFor(() => expect(toast.textContent).toBe("The extension was reloaded: reload this tab"));
+  expect(document.querySelectorAll(`.${DOCK_BUTTON_CLASS}`)).toHaveLength(1);
 });
