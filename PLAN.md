@@ -503,7 +503,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B5a** Messages + settings + capture store [Phase 3, part] — Done 2026-10-04 (69e9560)
 - **B5b** Capture manager, always-attached mode [Phase 3, rest] — Done 2026-10-04 (0eb449e)
 - **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part] — Done 2026-10-04 (924b11c)
-- **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part] — Done 2026-10-04
+- **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part] — Done 2026-10-04 (026d0d1)
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest]
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible]
 - **B9** Native host + installer scripts + host tests [Phase 5]
