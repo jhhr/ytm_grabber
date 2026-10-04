@@ -16,6 +16,8 @@ export interface ExtensionBrowser {
   extensionId: string;
   /** Chrome's download folder in this profile. */
   downloadDir: string;
+  /** The profile (Chromium's --user-data-dir); user-level native messaging hosts are registered in it. */
+  userDataDir: string;
   close(): Promise<void>;
 }
 
@@ -66,15 +68,18 @@ export async function launchWithExtension({ port, workDir }: { port: number; wor
     await cdp.send("Browser.setDownloadBehavior", { behavior: "default" });
     await cdp.detach();
 
-    return { context, sw, extensionId, downloadDir, close: () => context.close() };
+    return { context, sw, extensionId, downloadDir, userDataDir, close: () => context.close() };
   } catch (error) {
     await context.close();
     throw error;
   }
 }
 
-/** Opens (or navigates `page` to) the mock watch page of `videoId`; `song` sets the title and artist YTM shows. */
-export async function openWatchPage(page: Page, videoId: string, song: { title?: string; artist?: string } = {}): Promise<void> {
+/**
+ * Opens (or navigates `page` to) the mock watch page of `videoId`; `song` sets the title and artist
+ * YTM shows, and the player's musicVideoType (default the album track's, MUSIC_VIDEO_TYPE_ATV).
+ */
+export async function openWatchPage(page: Page, videoId: string, song: { title?: string; artist?: string; musicVideoType?: string } = {}): Promise<void> {
   const query = new URLSearchParams({ v: videoId, ...song });
   await page.goto(`https://music.youtube.com/watch?${query}`);
 }

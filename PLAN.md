@@ -341,7 +341,7 @@ Edge cases to handle:
 - **Song vs. video warning:** if `musicVideoType` is `MUSIC_VIDEO_TYPE_OMV` (official music video) rather than `MUSIC_VIDEO_TYPE_ATV` (the album track), show a warning before downloading — a music video's audio often has an intro/outro, so the track-synced lyrics won't line up. Offer "Download anyway".
 - Click → `audio:download { videoId, stem }` to the SW. The SW resolves `outputDir` (learned download dir → option override → host's fallback) and talks to the native host over a `chrome.runtime.connectNative` **port**, relaying progress to the tab.
 
-*(B10: there is no `audio:download` message: each download runs over its own `audio` port (content `start { videoId, stem }` / `cancel`; worker `progress { percent }`, `done { path }`, `error { message, cancelled? }`), and one shared native port serves all of them, closed when no request is left. `outputDir` = the override, else the learned folder, else omitted (the host's fallback): the override wins. Any known `musicVideoType` other than ATV gets the warning; an unknown one does not. A click while running asks "Stop this audio download?" in a popover; a click on done sends `audio:reveal { path }`. **Open point:** the host reveals only inside folders it saved to in its own process, and closing the idle port ends that process, so a reveal after the download finished is refused.)*
+*(B10: there is no `audio:download` message: each download runs over its own `audio` port (content `start { videoId, stem }` / `cancel`; worker `progress { percent }`, `done { path }`, `error { message, cancelled? }`), and one shared native port serves all of them, closed when no request is left. `outputDir` = the override, else the learned folder, else omitted (the host's fallback): the override wins. Any known `musicVideoType` other than ATV gets the warning; an unknown one does not. A click while running asks "Stop this audio download?" in a popover; a click on done sends `audio:reveal { path }`. ~~**Open point:** the host reveals only inside folders it saved to in its own process, and closing the idle port ends that process, so a reveal after the download finished is refused.~~ Resolved in B11: the host keeps the folders in `saved-folders.json` (§3.8, §7.1); the B11 end-to-end test reveals from a new host process.)*
 
 ### 3.8 Native messaging host (`native-host/`)
 
@@ -388,7 +388,7 @@ Edge cases to handle:
 - `videoId` must match `^[A-Za-z0-9_-]{11}$`.
 - `stem` re-sanitized with the same rules as `filenames.ts`, then every `%` doubled to `%%` (yt-dlp treats `-o` as a template).
 - `outputDir` must be an existing absolute directory; otherwise use `fallbackOutputDir`.
-- `reveal` only for paths inside a directory the host itself wrote to this session.
+- `reveal` only for paths inside a directory the host itself wrote to ~~this session~~ (B11: in this or an earlier run, per the §7.1 decision: `saved-folders.json` next to the script, `{"folders": [...]}`, canonical paths oldest first, the last 200; merged with the file right before each atomic write; missing or corrupt = empty).
 
 **yt-dlp invocation**
 
@@ -411,6 +411,8 @@ subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, text=True, encoding="utf-8",
 
 *(B9, yt-dlp 2026.08.19 against a local file, also with `-x` + ffmpeg: progress lines (`PG_PROGRESS  42.3%`; `  N/A%` without a size; the last one twice) and the `after_move:filepath` line come on **stdout**, warnings and `ERROR:` lines on stderr; with `-x` the path is the extracted file. **Doubling `%` is not enough:** yt-dlp runs `expandvars` over `-P` and over the literal text of `-o`, so `$NAME` / `${NAME}` in a title (and `%NAME%` in a Windows folder) would become an environment variable's value, possibly a path elsewhere; no escape works on Windows once a title has a `'`. The host refuses such a stem (refused, not changed, as the SW does), falls back from such an `outputDir`, and checks the file landed as `<dir>/<stem>.<ext>`. Protocol additions: `pong.problems` (readable reasons, e.g. yt-dlp not found), `error.cancelled: true`, a request's `requestId` echoed in its errors; `cancel` and `reveal` answer only on failure. `install.ps1` searches PATH with `Get-Command` rather than `where.exe`, whose output would pass through the console code page.)*
 
+*(B11: a download's final `done`/`error` is the first message with its requestId: the host sends it before the download leaves its table, under the lock a `cancel` looks it up with, so a cancel at that moment gets no reply (the run is over) or a "No running download" error after the final reply. Chromium 141 on Linux finds a user-level host in `<user-data-dir>/NativeMessagingHosts/<name>.json` and reads it at every connect; its `lastError` texts for a missing host and another extension's host are the ones `audio.ts` maps.)*
+
 ### 3.9 Options page
 
 - Capture mode: on-demand (default) / always attached
@@ -418,6 +420,8 @@ subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, text=True, encoding="utf-8",
 - Download folder: shows the learned path, with a manual override
 - Native host status: **Test connection** (`ping` → shows host version, yt-dlp version, ffmpeg found)
 - (Phase 8) Auto-download the Tony TTML after capture
+
+*(B11: `static/options.html` + `options.css` (light and dark) and `src/options/optionsPage.ts`; also the debug capture logging switch and the extension's ID (for `install.ps1 -ExtensionId`). Each change is saved at once, one setting per write; the override is saved trimmed when the field is committed, "" for none, with a warning (not a refusal) when it is not a full Windows/POSIX folder path, since the host would then use its fallbackOutputDir. Test connection lists the host's `problems` and gives up after 15 s on the page's side.)*
 
 ---
 
@@ -522,5 +526,5 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible] — Done 2026-10-04 (ab29229)
 - **B9** Native host + installer scripts + host tests [Phase 5] — Done 2026-10-04 (c1e471d)
 - **B10** Audio button + page bridge + SW audio relay [Phase 6] — Done 2026-10-04 (21c504c)
-- **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part]
+- **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part] — Done 2026-10-04
 - **B12** Documentation pass: README, `docs/spike-notes.md` 👤 checklist, this plan brought up to date [Phase 7, rest]

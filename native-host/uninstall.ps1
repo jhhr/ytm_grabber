@@ -6,8 +6,9 @@
 .DESCRIPTION
         powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1 [-RemoveConfig]
 
-    Removes HKCU\Software\Google\Chrome\NativeMessagingHosts\com.jormki.ytm_grabber and the
-    files install.ps1 generated next to this script (host.bat, com.jormki.ytm_grabber.json).
+    Removes HKCU\Software\Google\Chrome\NativeMessagingHosts\com.jormki.ytm_grabber, the files
+    install.ps1 generated next to this script (host.bat, com.jormki.ytm_grabber.json) and the
+    host's list of folders it saved audio into (saved-folders.json).
     config.json is kept unless -RemoveConfig is given.
 
 .PARAMETER RemoveConfig
@@ -31,7 +32,7 @@ if (Test-Path -LiteralPath $RegistryKey) {
     Write-Host "Not registered: $RegistryKey does not exist"
 }
 
-$names = @('host.bat', "$HostName.json")
+$names = @('host.bat', "$HostName.json", 'saved-folders.json')
 if ($RemoveConfig) { $names += 'config.json' }
 foreach ($name in $names) {
     $path = Join-Path $PSScriptRoot $name

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dirFromDownloadedPath } from "../src/shared/downloadDir";
+import { dirFromDownloadedPath, isAbsoluteFolderPath } from "../src/shared/downloadDir";
 
 const STEM = "Marrow & Tin - Northbound Kites [Synth3t1cK1]";
 
@@ -50,5 +50,19 @@ describe("dirFromDownloadedPath", () => {
   it("ignores doubled and trailing separators", () => {
     expect(dirFromDownloadedPath("C:\\Users\\\\x\\Downloads\\\\stem\\a.ttml", "stem/a.ttml")).toBe("C:\\Users\\x\\Downloads");
     expect(dirFromDownloadedPath("/home//x/Downloads/a.ttml", "a.ttml")).toBe("/home/x/Downloads");
+  });
+});
+
+describe("isAbsoluteFolderPath", () => {
+  it("accepts a folder from a drive's root, a UNC share or the POSIX root", () => {
+    for (const path of ["C:\\Users\\me\\Music", "c:/Music", "C:\\", "\\\\server\\share", "\\\\server\\share\\Music", "//server/share/x", "/home/me/Music", "/"]) {
+      expect(isAbsoluteFolderPath(path), path).toBe(true);
+    }
+  });
+
+  it("refuses what the native host would not use as it is", () => {
+    for (const path of ["", "Music", "Music\\Practice", "C:", "C:Music", "\\Music", "~\\Music", "~/Music", "\\\\server", "%USERPROFILE%\\Music", "C:\\Music\tx", "/home/me\n"]) {
+      expect(isAbsoluteFolderPath(path), JSON.stringify(path)).toBe(false);
+    }
   });
 });

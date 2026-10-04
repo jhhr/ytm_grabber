@@ -13,9 +13,11 @@ little-endian length followed by that many bytes of UTF-8 JSON (PLAN.md section 
   {type: "reveal", path}                     {type: "error", requestId?, message,
                                                stderrTail?, cancelled?}
 
-Every download ends with exactly one "done" or "error" for its requestId; a cancelled one
-ends with {type: "error", message: "Cancelled", cancelled: true}. "cancel" and "reveal" are
-answered only when they fail. Any request may carry a requestId, which error replies echo.
+Every download ends with exactly one "done" or "error" for its requestId, and nothing is sent
+for that requestId before it; a cancelled one ends with {type: "error", message: "Cancelled",
+cancelled: true}. "cancel" and "reveal" are answered only when they fail. Any request may carry
+a requestId, which error replies echo. "reveal" shows only files inside folders a download was
+saved into, by this or an earlier host process (saved-folders.json next to this script).
 
 This process is the security boundary between the browser and the machine: everything in a
 message is checked before use, the yt-dlp command line is fixed apart from the user's own
@@ -37,6 +39,7 @@ import string
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -45,6 +48,7 @@ import unicodedata
 HOST_VERSION = "0.1.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_NAME = "config.json"
+SAVED_FOLDERS_NAME = "saved-folders.json"
 DEFAULT_EXTRA_ARGS = ["-x"]
 
 MAX_INCOMING = 1024 * 1024  # our own cap: real requests are tiny; Chrome would send up to 4 GB
@@ -57,6 +61,9 @@ VERSION_TIMEOUT = 10.0  # seconds for `yt-dlp --version`
 KILL_GRACE = 1.0  # seconds between SIGTERM and SIGKILL (not Windows: taskkill /F is final)
 READER_GRACE = 5.0  # seconds to drain a finished yt-dlp's pipes (a grandchild may hold them)
 SHUTDOWN_WAIT = 5.0  # seconds to wait for cancelled downloads when Chrome closes the port
+SAVED_FOLDERS_LIMIT = 200  # folders remembered for reveal, the most recent ones
+REPLACE_TRIES = 5  # attempts at moving the new saved-folders.json into place (Windows: see _replace)
+REPLACE_PAUSE = 0.05  # seconds between them
 
 PROGRESS_MARK = "PG_PROGRESS"
 PROGRESS_TEMPLATE = "download:" + PROGRESS_MARK + " %(progress._percent_str)s"
@@ -430,6 +437,90 @@ def taskkill_command(pid):
     return [taskkill, "/T", "/F", "/PID", str(pid)]
 
 
+# --- Folders saved to -----------------------------------------------------------------------
+#
+# reveal shows only files inside a folder a download was saved into (PLAN.md 3.8, 7.1). The
+# extension closes its port as soon as it is owed nothing, which ends this process, so the click
+# on the check mark always reaches a new host process: the folders are kept next to this script
+# in saved-folders.json, {"folders": [<canonical path>, ...]}, oldest first, the most recent
+# SAVED_FOLDERS_LIMIT of them. Several host processes may run at once (a download port beside a
+# one-shot ping or reveal), so a writer merges with what is on disk right before it writes (its
+# own folders count as the most recent: the last writer decides the order) and replaces the file
+# whole, through a temporary file in the same folder and os.replace, so a reader never meets half
+# a file. A missing, unreadable or corrupt file counts as an empty list: at worst a reveal is
+# refused.
+
+
+def merge_folders(older, newer, limit=SAVED_FOLDERS_LIMIT):
+    """`older` then `newer` (each oldest first) as one list without repeats, each folder where it
+    comes last (so one in both takes its place in `newer`), cut to the last `limit`."""
+    merged = []
+    seen = set()
+    for folder in reversed(list(older) + list(newer)):
+        if folder not in seen:
+            seen.add(folder)
+            merged.append(folder)
+    merged.reverse()
+    return merged[max(0, len(merged) - limit):]
+
+
+def _usable_folder(value):
+    return isinstance(value, str) and bool(value) and not _has_control(value) and _is_absolute(value)
+
+
+def load_saved_folders(path):
+    """The folders in the state file at `path`, oldest first; [] when it is missing, unreadable
+    or not what save_saved_folders() writes. Never raises."""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError, RecursionError) as exc:  # ValueError covers bad UTF-8 and bad JSON
+        log("ignoring %s: %s" % (path, _clip(str(exc), 200)))
+        return []
+    except Exception as exc:  # e.g. MemoryError: still only a refused reveal, never a crash
+        log("ignoring %s: %s" % (path, _clip(repr(exc), 200)))
+        return []
+    folders = data.get("folders") if isinstance(data, dict) else None
+    if not isinstance(folders, list):
+        log("ignoring %s: it holds no list of folders" % path)
+        return []
+    return merge_folders([folder for folder in folders if _usable_folder(folder)], [])
+
+
+def save_saved_folders(path, folders):
+    """Replaces the state file at `path` with `folders`, whole. Raises OSError when it cannot;
+    the file is then as it was."""
+    fd, temp = tempfile.mkstemp(prefix=SAVED_FOLDERS_NAME + ".", suffix=".tmp", dir=os.path.dirname(path))
+    try:
+        with open(fd, "w", encoding="utf-8") as handle:
+            json.dump({"folders": list(folders)}, handle, indent=1)  # ASCII: ensure_ascii
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())  # the new name never points at contents not yet on disk
+        _replace(temp, path)
+    except BaseException:
+        try:
+            os.unlink(temp)
+        except OSError:
+            pass
+        raise
+
+
+def _replace(source, target):
+    # On Windows os.replace fails (access denied) while another process has the target open,
+    # as another host process reading the list may have for a moment: try again shortly.
+    for attempt in range(REPLACE_TRIES):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if attempt + 1 == REPLACE_TRIES:
+                raise
+            time.sleep(REPLACE_PAUSE)
+
+
 # --- Processes ------------------------------------------------------------------------------
 
 
@@ -595,10 +686,13 @@ def _clip(text, limit):
 
 
 def _quote(value):
-    """A JSON-quoted, shortened copy of `value` for an error sentence."""
+    """A JSON-quoted, shortened copy of `value` for an error sentence. Letters such as "\u00e4"
+    stay as they are (the user reads these sentences); control characters are still escaped,
+    and a lone surrogate becomes "?" so the reply stays valid UTF-8."""
     if not isinstance(value, str):
         return type(value).__name__
-    return json.dumps(_clip(value, 200))
+    text = _clip(value, 200).encode("utf-8", "replace").decode("utf-8")
+    return json.dumps(text, ensure_ascii=False)
 
 
 def _request_id(message):
@@ -743,15 +837,20 @@ class Download(object):
 
 
 class Host(object):
-    def __init__(self, stdin, channel, config_path):
+    def __init__(self, stdin, channel, config_path, folders_path):
         self.stdin = stdin
         self.channel = channel
         self.config_path = config_path
+        self.folders_path = folders_path  # saved-folders.json
         self.write_lock = threading.Lock()
         self.broken = False
-        self.lock = threading.Lock()  # guards downloads and written_dirs
+        self.lock = threading.Lock()  # guards downloads
         self.downloads = {}
-        self.written_dirs = []  # canonical folders yt-dlp saved into for us: what reveal may show
+        # Canonical folders yt-dlp saved into in this process, oldest first: with the state file,
+        # what reveal may show (also when the file cannot be written). One writer of the file at
+        # a time in this process.
+        self.folders_lock = threading.Lock()
+        self.saved_folders = []
         self.handlers = {
             "ping": self.handle_ping,
             "download": self.handle_download,
@@ -913,24 +1012,51 @@ class Host(object):
             raise
 
     def finish(self, download, code, internal_error=None):
-        """Called once by each download's waiter thread: sends its final reply."""
-        with self.lock:
-            if self.downloads.get(download.request_id) is download:
-                del self.downloads[download.request_id]
+        """Called once by each download's waiter thread: sends its final reply.
+
+        The reply goes out before the download leaves self.downloads, both under self.lock, which
+        handle_cancel holds to look a download up. So a cancel that comes while the run ends
+        either finds it, and the cancel of a run that is over says nothing (Download.cancel), or
+        comes after the reply and gets "No running download" behind it, which the extension
+        ignores. The other way round, that refusal could go out first, and the extension takes the
+        first reply for a requestId as its end."""
         with download.lock:
             download.finished = True
             cancelled = download.cancelled
-        if internal_error is not None:
-            reply = {"type": "error", "requestId": download.request_id, "message": internal_error}
-        else:
-            reply = download.outcome(code, cancelled)
+        try:
+            if internal_error is not None:
+                reply = {"type": "error", "requestId": download.request_id, "message": internal_error}
+            else:
+                reply = download.outcome(code, cancelled)
+        except Exception as exc:  # never leave a download without a final reply
+            log("download %s: %s" % (download.request_id, traceback.format_exc()))
+            reply = {"type": "error", "requestId": download.request_id, "message": "Internal error: %s" % _clip(str(exc), 300)}
         if reply["type"] == "done":
-            folder = canonical_path(download.output_dir)
-            if folder is not None:
-                with self.lock:
-                    if folder not in self.written_dirs:
-                        self.written_dirs.append(folder)
-        self.send(reply)
+            # Before the reply: the extension closes its port once it has it, which ends this
+            # process, and a reveal of the file then reaches a new one.
+            self.remember_folder(download.output_dir)
+        with self.lock:
+            self.send(reply)
+            if self.downloads.get(download.request_id) is download:
+                del self.downloads[download.request_id]
+
+    def remember_folder(self, directory):
+        """Adds `directory` to the folders reveal may show, in this process and in the state file."""
+        folder = canonical_path(directory)
+        if folder is None:
+            return
+        with self.folders_lock:
+            self.saved_folders = merge_folders(self.saved_folders, [folder])
+            try:
+                save_saved_folders(self.folders_path, merge_folders(load_saved_folders(self.folders_path), self.saved_folders))
+            except Exception as exc:  # reveal still works in this process; nothing else depends on it
+                log("could not write %s: %s" % (self.folders_path, _clip(str(exc), 300)))
+
+    def known_folders(self):
+        """The folders reveal may show: the state file's and this process's own."""
+        with self.folders_lock:
+            mine = list(self.saved_folders)
+        return merge_folders(load_saved_folders(self.folders_path), mine)
 
     # cancel
 
@@ -951,9 +1077,7 @@ class Host(object):
         if not isinstance(path, str) or not path or _has_control(path) or '"' in path:
             raise HostError("reveal needs the path of a file this host saved")
         target = canonical_path(path)
-        with self.lock:
-            folders = list(self.written_dirs)
-        if target is None or not any(is_within(target, folder) for folder in folders):
+        if target is None or not any(is_within(target, folder) for folder in self.known_folders()):
             raise HostError("Only files in a folder this host has saved to can be shown: %s" % _quote(path))
         if not os.path.exists(path):
             raise HostError("%s does not exist any more" % _quote(path))
@@ -1005,7 +1129,7 @@ def make_subfolder(directory, stem):
 def main():
     stdin, channel = take_stdio()
     log("started (pid %d, Python %s)" % (os.getpid(), sys.version.split()[0]))
-    host = Host(stdin, channel, os.path.join(HERE, CONFIG_NAME))
+    host = Host(stdin, channel, os.path.join(HERE, CONFIG_NAME), os.path.join(HERE, SAVED_FOLDERS_NAME))
     try:
         host.serve()
     except KeyboardInterrupt:

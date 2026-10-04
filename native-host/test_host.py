@@ -3,8 +3,9 @@ its pure helpers, and the real host driven over stdin/stdout with a fake yt-dlp.
 
     python3 -m unittest discover -s native-host -p "test_*.py"
 
-The fake yt-dlp picks its behaviour from the video id's first four letters (after any leading
-"-"): see FAKE_YTDLP. It prints progress on stdout, where yt-dlp 2026.08.19 prints it.
+The fake yt-dlp (testing/fake_yt_dlp.py, shared with the end-to-end test) picks its behaviour
+from the video id's first four letters (after any leading "-"). It prints progress on stdout,
+where yt-dlp 2026.08.19 prints it.
 """
 
 import io
@@ -31,99 +32,9 @@ VECTORS = os.path.join(HERE, "..", "test", "fixtures", "sanitize-vectors.json")
 TIMEOUT = 10.0
 POSIX_ONLY = unittest.skipIf(os.name == "nt", "the fake yt-dlp is a shebang script")
 
-FAKE_YTDLP = r'''
-import json, os, subprocess, sys, time
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-
-
-def out(text):
-    sys.stdout.write(text + "\n")
-    sys.stdout.flush()
-
-
-def err(text):
-    sys.stderr.write(text + "\n")
-    sys.stderr.flush()
-
-
-args = sys.argv[1:]
-if args == ["--version"]:
-    out("2099.01.01-fake")
-    sys.exit(0)
-
-video_id = args[args.index("--") + 1]
-mode = video_id.lstrip("-")[:4]
-with open(os.path.join(HERE, "argv-%s.json" % video_id), "w", encoding="utf-8") as handle:
-    json.dump(args, handle)
-folder = args[args.index("-P") + 1]
-name = args[args.index("-o") + 1].replace("%(ext)s", "m4a").replace("%%", "%")
-path = os.path.join(folder, name)
-
-
-def pids(*more):
-    with open(os.path.join(HERE, "pids-%s.json" % video_id), "w") as handle:
-        json.dump([os.getpid()] + list(more), handle)
-
-
-def finish():
-    with open(path, "wb") as handle:
-        handle.write(b"fake audio")
-    out(path)
-
-
-if mode == "okay":  # what yt-dlp prints under --print + --progress + --newline
-    out("PG_PROGRESS  10.0%")
-    out("PG_PROGRESS   N/A%")
-    out("PG_PROGRESS  55.5%")
-    sys.stdout.buffer.write(b"\xff\xfe not UTF-8\n")
-    out("PG_PROGRESS 100.0%")
-    out("PG_PROGRESS 100.0%")
-    finish()
-elif mode == "errp":  # progress on stderr instead
-    for text in ("  20.0%", " 100.0%"):
-        err("PG_PROGRESS" + text)
-    err("WARNING: a warning")
-    finish()
-elif mode == "fail":
-    for number in range(1, 30):
-        err("WARNING: line %02d" % number)
-    err("ERROR: boom 30")
-    sys.exit(2)
-elif mode == "slow":
-    pids()
-    out("PG_PROGRESS   1.0%")
-    time.sleep(30)
-    finish()
-elif mode == "kids":  # a child that also holds our stdout, like ffmpeg under yt-dlp
-    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
-    pids(child.pid)
-    out("PG_PROGRESS   2.0%")
-    time.sleep(30)
-elif mode == "wait":  # runs until the test creates release-<id>
-    out("PG_PROGRESS   5.0%")
-    release = os.path.join(HERE, "release-" + video_id)
-    for _ in range(200):
-        if os.path.exists(release):
-            break
-        time.sleep(0.05)
-    finish()
-elif mode == "nopa":
-    out("PG_PROGRESS 100.0%")
-elif mode == "gone":
-    out(os.path.join(folder, "missing.m4a"))
-elif mode == "elsw":  # saves somewhere it was not asked to
-    path = os.path.join(os.path.dirname(folder), name)
-    finish()
-elif mode == "huge":
-    out("PG_PROGRESS  50.0% " + "x" * 200000)
-    for number in range(30):
-        err("ERROR: %02d " % number + "y" * 5000)
-    sys.exit(1)
-else:
-    err("ERROR: unknown fake mode " + mode)
-    sys.exit(3)
-'''
+FAKE_YTDLP_PATH = os.path.join(HERE, "testing", "fake_yt_dlp.py")
+with open(FAKE_YTDLP_PATH, encoding="utf-8") as _handle:
+    FAKE_YTDLP = _handle.read()
 
 
 def frame(message):
@@ -161,19 +72,30 @@ def wait_until(predicate, timeout=TIMEOUT):
 
 
 class HostProcess(object):
-    """The real host in a temp folder of its own (config.json sits next to the script), with
-    a fake yt-dlp and a fake ffmpeg in bin/ and an output folder out/."""
+    """The real host in a temp folder of its own (config.json and saved-folders.json sit next to
+    the script), with a fake yt-dlp and a fake ffmpeg in bin/ and an output folder out/. With
+    `beside`, another host process in that HostProcess's folder (as Chrome starts one per port)."""
 
-    def __init__(self, test, config=None, overrides=None, raw_config=None, env=None):
+    def __init__(self, test, config=None, overrides=None, raw_config=None, env=None, beside=None):
         self.test = test
-        self.dir = tempfile.mkdtemp(prefix="ytm-host-")
         test.addCleanup(self.cleanup)
+        self.owner = beside is None
+        if beside is not None:
+            for name in ("dir", "host_dir", "bin", "out", "ytdlp", "config_path", "folders_path"):
+                setattr(self, name, getattr(beside, name))
+        else:
+            self._set_up(config, overrides, raw_config)
+        self._start(env)
+
+    def _set_up(self, config, overrides, raw_config):
+        self.dir = tempfile.mkdtemp(prefix="ytm-host-")
         self.host_dir = os.path.join(self.dir, "host")
         self.bin = os.path.join(self.dir, "bin")
         self.out = os.path.join(self.dir, "out")
         for folder in (self.host_dir, self.bin, self.out):
             os.mkdir(folder)
         shutil.copy(HOST_SCRIPT, self.host_dir)
+        self.folders_path = os.path.join(self.host_dir, host.SAVED_FOLDERS_NAME)
         self.ytdlp = os.path.join(self.bin, "yt-dlp")
         interpreter = sys.executable if " " not in sys.executable else "/usr/bin/env python3"
         self._executable(self.ytdlp, "#!" + interpreter + "\n" + FAKE_YTDLP)
@@ -193,6 +115,7 @@ class HostProcess(object):
             with open(self.config_path, "w", encoding="utf-8") as handle:
                 json.dump(settings, handle)
 
+    def _start(self, env):
         self.proc = subprocess.Popen(
             [sys.executable, "-u", os.path.join(self.host_dir, "ytm_grabber_host.py")],
             stdin=subprocess.PIPE,
@@ -318,23 +241,29 @@ class HostProcess(object):
         self.test.assertEqual(self.problems, [])
 
     def cleanup(self):
-        if self.proc.poll() is None:
-            self.proc.kill()
-            self.proc.wait()
-        for name in os.listdir(self.bin):
-            if name.startswith("pids-"):
-                with open(os.path.join(self.bin, name)) as handle:
-                    for pid in json.load(handle):
-                        try:
-                            os.kill(pid, 9)
-                        except OSError:
-                            pass
-        for stream in (self.proc.stdin, self.proc.stdout, self.proc.stderr):
-            try:
-                stream.close()
-            except (OSError, ValueError):
-                pass
-        shutil.rmtree(self.dir, ignore_errors=True)
+        # Cleanups run last added first: a host started beside this one is cleaned up before it,
+        # and the folder (with every fake's pids) belongs to the first.
+        proc = getattr(self, "proc", None)
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        if self.owner and os.path.isdir(getattr(self, "bin", "")):
+            for name in os.listdir(self.bin):
+                if name.startswith("pids-"):
+                    with open(os.path.join(self.bin, name)) as handle:
+                        for pid in json.load(handle):
+                            try:
+                                os.kill(pid, 9)
+                            except OSError:
+                                pass
+        if proc is not None:
+            for stream in (proc.stdin, proc.stdout, proc.stderr):
+                try:
+                    stream.close()
+                except (OSError, ValueError):
+                    pass
+        if self.owner and getattr(self, "dir", None):
+            shutil.rmtree(self.dir, ignore_errors=True)
 
 
 # --- Pure parts -----------------------------------------------------------------------------
@@ -399,6 +328,12 @@ class ValidationTest(unittest.TestCase):
         for stem, reason in refused.items():
             self.assertIn(reason, host.stem_problem(stem, vid), stem)
         self.assertIn("must be a string", host.stem_problem(None, vid))
+
+    def test_quote_keeps_letters_for_the_reader(self):
+        self.assertEqual(host._quote("Caf\u00e9 \u00e4\u00f6"), '"Caf\u00e9 \u00e4\u00f6"')
+        self.assertEqual(host._quote("a\nb"), '"a\\nb"')
+        self.assertEqual(host._quote("x\ud800y"), '"x?y"')
+        self.assertEqual(host._quote(5), "int")
 
     def test_output_template_doubles_percent(self):
         self.assertEqual(host.output_template("100% Pure [abcdefghijk]"), "100%% Pure [abcdefghijk].%(ext)s")
@@ -486,6 +421,179 @@ class ValidationTest(unittest.TestCase):
         self.assertEqual(json.loads(host.read_frame(stream))["pad"], "x" * 70000)
         self.assertEqual(json.loads(host.read_frame(stream)), {"type": "ping"})
         self.assertIsNone(host.read_frame(stream))  # input ends inside a header
+
+
+class SavedFoldersTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="ytm-folders-")
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        quiet = mock.patch.object(host, "log")  # what it would say goes to the test's stderr
+        self.log = quiet.start()
+        self.addCleanup(quiet.stop)
+        self.path = os.path.join(self.dir, host.SAVED_FOLDERS_NAME)
+
+    def write(self, data):
+        with open(self.path, "wb") as handle:
+            handle.write(data if isinstance(data, bytes) else json.dumps(data).encode("utf-8"))
+
+    def test_merge_keeps_each_folder_once_where_it_comes_last(self):
+        self.assertEqual(host.merge_folders(["/a", "/b", "/c"], ["/b", "/d"]), ["/a", "/c", "/b", "/d"])
+        self.assertEqual(host.merge_folders(["/a", "/b", "/a"], []), ["/b", "/a"])
+        self.assertEqual(host.merge_folders(["/%d" % n for n in range(10)], ["/x"], limit=4), ["/7", "/8", "/9", "/x"])
+        self.assertEqual(host.merge_folders([], []), [])
+
+    def test_round_trip_leaves_no_temporary_file(self):
+        folders = ["/music/a", "/music/J\xf6rmki"]
+        host.save_saved_folders(self.path, folders)
+        self.assertEqual(host.load_saved_folders(self.path), folders)
+        self.assertEqual(os.listdir(self.dir), [host.SAVED_FOLDERS_NAME])
+        with open(self.path, "rb") as handle:
+            handle.read().decode("ascii")  # written as ASCII JSON
+
+    def test_anything_unexpected_reads_as_an_empty_list(self):
+        self.assertEqual(host.load_saved_folders(self.path), [])  # missing
+        cases = [b"", b"not json", b"\xff\xfe{}", b"[" * 100000, b"null", b'["/a"]', b'{"folders": "/a"}', b'{"other": ["/a"]}']
+        for data in cases:
+            self.write(data)
+            self.assertEqual(host.load_saved_folders(self.path), [], data[:20])
+        os.remove(self.path)
+        os.mkdir(self.path)  # unreadable: a folder in its place
+        self.assertEqual(host.load_saved_folders(self.path), [])
+        self.assertEqual(self.log.call_count, len(cases) + 1)  # said on stderr, missing file aside
+        self.assertTrue(self.log.call_args[0][0].startswith("ignoring " + self.path))
+
+    def test_unusable_entries_are_skipped(self):
+        self.write({"folders": [1, None, "", "relative/dir", "/a\nb", "/ok", ["/x"], "/ok", "/also"]})
+        self.assertEqual(host.load_saved_folders(self.path), ["/ok", "/also"])
+
+    def test_a_failed_write_leaves_the_file_as_it_was(self):
+        host.save_saved_folders(self.path, ["/old"])
+        with mock.patch.object(host.os, "replace", side_effect=OSError("disk gone")):
+            with self.assertRaises(OSError):
+                host.save_saved_folders(self.path, ["/new"])
+        self.assertEqual(host.load_saved_folders(self.path), ["/old"])
+        self.assertEqual(os.listdir(self.dir), [host.SAVED_FOLDERS_NAME])
+
+    def test_replace_is_tried_again_while_another_process_has_the_file_open(self):
+        real_replace = os.replace
+        calls = []
+
+        def busy_twice(source, target):
+            calls.append(target)
+            if len(calls) < 3:
+                raise PermissionError(13, "Access is denied")  # Windows, while another process reads it
+            real_replace(source, target)
+
+        with mock.patch.object(host.os, "replace", side_effect=busy_twice), mock.patch.object(host.time, "sleep") as sleep:
+            host.save_saved_folders(self.path, ["/new"])
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(sleep.call_count, 2)
+        self.assertEqual(host.load_saved_folders(self.path), ["/new"])
+        with mock.patch.object(host.os, "replace", side_effect=PermissionError(13, "Access is denied")), mock.patch.object(host.time, "sleep"):
+            with self.assertRaises(PermissionError):
+                host.save_saved_folders(self.path, ["/newer"])
+        self.assertEqual(host.load_saved_folders(self.path), ["/new"])
+        self.assertEqual(os.listdir(self.dir), [host.SAVED_FOLDERS_NAME])
+
+
+class FinishRaceTest(unittest.TestCase):
+    """A cancel that arrives while a download ends. The extension takes the first reply that
+    carries a download's requestId as its end, so that must be the final done/error, whenever the
+    cancel comes. The real Host and Download, in this process, with the moment forced by hooks."""
+
+    REQUEST = "r1"
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="ytm-race-")
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        quiet = mock.patch.object(host, "log")
+        quiet.start()
+        self.addCleanup(quiet.stop)
+        self.channel = io.BytesIO()
+        self.host = host.Host(None, self.channel, os.path.join(self.dir, "config.json"), os.path.join(self.dir, host.SAVED_FOLDERS_NAME))
+        self.out = os.path.join(self.dir, "out")
+        os.mkdir(self.out)
+        stem = "Artist - Title [okayAAAAAAA]"
+        self.path = os.path.join(self.out, stem + ".m4a")
+        open(self.path, "wb").close()
+        # A run whose yt-dlp has just exited, having saved the file: what the waiter thread sees.
+        self.download = host.Download(self.host, self.REQUEST, ["yt-dlp"], self.out, stem)
+        self.download.proc = mock.Mock(**{"poll.return_value": 0})
+        self.download.last_line = self.path
+        self.host.downloads[self.REQUEST] = self.download
+        self.threads = []
+
+    def cancel(self):
+        """The stdin reader thread handling {type: "cancel"} for the download."""
+        self.host.dispatch(json.dumps({"type": "cancel", "requestId": self.REQUEST}).encode("utf-8"))
+
+    def cancel_from_another_thread(self):
+        """As cancel(), on a thread of its own, given a moment to get as far as it can."""
+        thread = threading.Thread(target=self.cancel)
+        thread.start()
+        thread.join(0.3)  # still waiting after that: it waits for a lock finish() holds
+        self.threads.append(thread)
+
+    def replies(self):
+        for thread in self.threads:
+            thread.join(TIMEOUT)
+        data, replies = self.channel.getvalue(), []
+        while data:
+            (size,) = struct.unpack("<I", data[:4])
+            replies.append(json.loads(data[4:4 + size].decode("ascii")))
+            data = data[4 + size:]
+        return replies
+
+    def check(self):
+        replies = self.replies()
+        self.assertEqual(replies[0], {"type": "done", "requestId": self.REQUEST, "path": self.path})
+        # After it, at most the refusal of a cancel that came too late, which the extension ignores.
+        for reply in replies[1:]:
+            self.assertEqual(reply["type"], "error")
+            self.assertIn("No running download", reply["message"])
+        self.assertNotIn(self.REQUEST, self.host.downloads)
+        self.assertEqual(host.load_saved_folders(self.host.folders_path), [host.canonical_path(self.out)])
+        return replies
+
+    def test_cancel_while_the_outcome_is_worked_out(self):
+        outcome = self.download.outcome
+
+        def outcome_after_a_cancel(code, cancelled):
+            self.cancel()
+            return outcome(code, cancelled)
+
+        self.download.outcome = outcome_after_a_cancel
+        self.host.finish(self.download, 0)
+        self.assertEqual(len(self.check()), 1)  # that cancel found the run over: no reply
+
+    def test_cancel_just_before_the_reply_is_written(self):
+        send = self.host.send
+
+        def send_after_a_cancel(message):
+            if message.get("type") == "done":
+                self.cancel_from_another_thread()
+            send(message)
+
+        self.host.send = send_after_a_cancel
+        self.host.finish(self.download, 0)
+        self.check()
+
+    def test_cancel_just_after_the_reply_is_written(self):
+        send = self.host.send
+
+        def cancel_after_sending(message):
+            send(message)
+            if message.get("type") == "done":
+                self.cancel_from_another_thread()
+
+        self.host.send = cancel_after_sending
+        self.host.finish(self.download, 0)
+        self.check()
+
+    def test_cancel_after_the_end(self):
+        self.host.finish(self.download, 0)
+        self.cancel()
+        self.assertEqual(len(self.check()), 2)
 
 
 class StdoutGuardTest(unittest.TestCase):
@@ -945,6 +1053,84 @@ class RevealTest(unittest.TestCase):
         for bad in ("", 'C:\\a"b', "a\nb"):
             self.assertIn("reveal needs the path", reveal(bad))
         h.close()
+
+    @staticmethod
+    def reveal(h, path):
+        h.send({"type": "reveal", "path": path, "requestId": "rv"})
+        reply = h.until(lambda m: m.get("requestId") == "rv")[-1]
+        return reply["message"]
+
+    def saved(self, h):
+        with open(h.folders_path, encoding="utf-8") as handle:
+            return json.load(handle)["folders"]
+
+    def test_a_new_host_process_reveals_what_an_earlier_one_saved(self):
+        first = HostProcess(self)
+        path = first.final(first.download("okayAAAAAAA"))[1]["path"]
+        first.close()  # Chrome closes the idle port: that host process is gone
+        self.assertEqual(self.saved(first), [host.canonical_path(first.out)])
+        # The click on the check mark reaches a new process. On Linux the accepted path gets as
+        # far as "Windows only": the folder check passed.
+        second = HostProcess(self, beside=first)
+        self.assertIn("works on Windows only", self.reveal(second, path))
+        self.assertIn("Only files in a folder this host has saved to", self.reveal(second, os.path.join(first.host_dir, "ytm_grabber_host.py")))
+        second.close()
+
+    def test_a_corrupt_or_unreadable_list_counts_as_empty(self):
+        first = HostProcess(self)
+        path = first.final(first.download("okayAAAAAAA"))[1]["path"]
+        first.close()
+        with open(first.folders_path, "wb") as handle:
+            handle.write(b'{"folders": ["' + first.out.encode() + b'"')  # cut short
+        second = HostProcess(self, beside=first)
+        self.assertIn("Only files in a folder this host has saved to", self.reveal(second, path))
+        self.assertEqual(second.ping()["type"], "pong")  # still running
+        # The next download writes a good list again.
+        self.assertEqual(second.final(second.download("okayAAAAAAB"))[1]["type"], "done")
+        self.assertEqual(self.saved(second), [host.canonical_path(first.out)])
+        self.assertIn("works on Windows only", self.reveal(second, path))
+        second.close()
+        # A folder where the file should be: nothing can be read or written, the host carries on,
+        # and the process that saved still shows its own folders.
+        os.remove(first.folders_path)
+        os.mkdir(first.folders_path)
+        third = HostProcess(self, beside=first)
+        self.assertIn("Only files in a folder this host has saved to", self.reveal(third, path))
+        self.assertEqual(third.final(third.download("okayAAAAAAC"))[1]["type"], "done")
+        self.assertIn("works on Windows only", self.reveal(third, path))
+        third.close()
+        self.assertTrue(wait_until(lambda: any("could not write" in line for line in third.stderr)), third.stderr)
+        self.assertEqual(sorted(os.listdir(first.host_dir)), sorted(["config.json", host.SAVED_FOLDERS_NAME, "ytm_grabber_host.py"]))
+
+    def test_keeps_the_200_most_recent_folders_once_each(self):
+        h = HostProcess(self)
+        out = host.canonical_path(h.out)
+        older = ["/nowhere/folder-%03d" % number for number in range(250)]
+        with open(h.folders_path, "w", encoding="utf-8") as handle:
+            json.dump({"folders": older[:100] + [out] + older[100:]}, handle)
+        self.assertEqual(h.final(h.download("okayAAAAAAA"))[1]["type"], "done")
+        saved = self.saved(h)
+        self.assertEqual(len(saved), host.SAVED_FOLDERS_LIMIT)
+        self.assertEqual(saved, older[51:] + [out])  # the oldest dropped, ours moved to the end
+        h.close()
+
+    def test_host_processes_running_at_once_merge_their_folders(self):
+        first = HostProcess(self)
+        second = HostProcess(self, beside=first)
+        folders = {}
+        for name in ("a", "b", "c"):
+            folders[name] = os.path.join(first.out, name)
+            os.mkdir(folders[name])
+        self.assertEqual(first.final(first.download("okayAAAAAAA", outputDir=folders["a"]))[1]["type"], "done")
+        self.assertEqual(second.final(second.download("okayAAAAAAB", outputDir=folders["b"]))[1]["type"], "done")
+        self.assertEqual(first.final(first.download("okayAAAAAAC", outputDir=folders["c"]))[1]["type"], "done")
+        # Each merged with the file just before writing; the last writer's own folders are the
+        # most recent, in its order.
+        self.assertEqual(self.saved(first), [host.canonical_path(folders[name]) for name in ("b", "a", "c")])
+        path_b = os.path.join(folders["b"], "Artist - Title [okayAAAAAAB].m4a")
+        self.assertIn("works on Windows only", self.reveal(first, path_b))
+        first.close()
+        second.close()
 
 
 if __name__ == "__main__":

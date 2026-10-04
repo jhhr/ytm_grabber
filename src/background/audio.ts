@@ -366,9 +366,9 @@ export function createAudioRelay({ native, settings, extensionId, newRequestId =
 
     // The host answers reveal only when it refuses, and reads its messages one at a time, in
     // order: a ping with the same requestId right after it is answered after any refusal, so
-    // the first reply decides. The host shows only files in folders it saved to while running,
-    // and the port (with the host) closes when no download is left, so a reveal works only while
-    // the host process that saved the file still runs.
+    // the first reply decides. The host shows only files in folders it saved downloads into; it
+    // keeps them in a file (saved-folders.json), so a new host process, which this usually is
+    // (the port closes when no download is left), knows them too.
     reveal({ path }) {
       return new Promise((resolve) => {
         const requestId = newRequestId();

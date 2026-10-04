@@ -1,0 +1,271 @@
+/* The options page (options.html). Light or dark with the system: the colours are custom
+   properties, set again for prefers-color-scheme: dark; form controls follow color-scheme. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #f6f6f7;
+  --card: #ffffff;
+  --text: #1d1d1f;
+  --muted: #5c5c66;
+  --border: #d9d9de;
+  --accent: #c0262d;
+  --accent-text: #ffffff;
+  --ok: #1e7a3c;
+  --warn-bg: #fff4d6;
+  --warn-text: #6b4a00;
+  --error: #b3261e;
+  --code-bg: #eeeef1;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161618;
+    --card: #222226;
+    --text: #ececf0;
+    --muted: #a5a5b0;
+    --border: #3a3a40;
+    --accent: #ff5c5c;
+    --accent-text: #1b0505;
+    --ok: #6fd391;
+    --warn-bg: #3d3214;
+    --warn-text: #f3d68b;
+    --error: #ff8a80;
+    --code-bg: #2e2e34;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 26px;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+h3 {
+  margin: 20px 0 8px;
+  font-size: 15px;
+}
+
+.intro {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+section {
+  margin: 0 0 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+fieldset {
+  position: relative;
+  margin: 0 0 12px;
+  padding: 0;
+  border: none;
+}
+
+legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-weight: 600;
+}
+
+fieldset > .saved-note {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.choice {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 10px;
+  align-items: baseline;
+  margin: 0 0 12px;
+}
+
+.choice > input {
+  margin: 0;
+}
+
+.choice > label {
+  font-weight: 500;
+}
+
+.choice > .hint {
+  grid-column: 2 / 4;
+}
+
+.hint {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.tag {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--code-bg);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--code-bg);
+  font: 13px/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.field {
+  margin: 12px 0 0;
+}
+
+.path {
+  overflow-wrap: anywhere;
+}
+
+#learned-dir[data-learned="false"] {
+  padding: 0;
+  background: none;
+  color: var(--muted);
+  font: italic 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.path-input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.path-input:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.warning {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-size: 13.5px;
+}
+
+.saved-note {
+  color: var(--ok);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.saved-note[data-kind="error"] {
+  color: var(--error);
+}
+
+button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.connection-result:empty {
+  display: none;
+}
+
+.connection-result {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.connection-result[data-state="error"] {
+  border-color: var(--error);
+}
+
+.connection-result p {
+  margin: 0 0 6px;
+}
+
+.connection-result dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 14px;
+  margin: 6px 0 0;
+}
+
+.connection-result dt {
+  color: var(--muted);
+}
+
+.connection-result dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.connection-result ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.status-ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.status-problem,
+.page-error,
+.connection-result[data-state="error"] .status-problem {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.page-error {
+  margin: 0 0 16px;
+}
+
+[hidden] {
+  display: none !important;
+}

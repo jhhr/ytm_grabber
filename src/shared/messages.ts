@@ -59,7 +59,8 @@ export type AudioPingResponse = { ok: true; pong: HostPong } | { ok: false; erro
 
 /**
  * Show a downloaded audio file in Explorer: `path` is a `done` reply's path. The host decides
- * whether it may (only inside a folder it saved to while running; Windows only).
+ * whether it may (only inside a folder it saved a download into, which it remembers across
+ * runs; Windows only).
  */
 export interface AudioRevealRequest {
   type: "audio:reveal";

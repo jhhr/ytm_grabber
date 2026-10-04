@@ -786,3 +786,23 @@ Left open:
 - **Reveal is refused in practice**: the host shows only files in folders it saved to in its own process, and the idle port is closed (ending the host) right after `done`,
   so the click on the check mark meets a fresh host. Lead's choice: keep the port open a while after the last request, or let the host remember its folders across runs.
 - Host race: a `cancel` handled between `finish()`'s delete and its send gets "No running download" out first, and the worker takes it as the end. Fix in the host: send, then delete.
+
+### B11 — 2026-10-04
+Built: host: `saved-folders.json` next to the script (`merge_folders`, `load_saved_folders`, `save_saved_folders`; `Host(stdin, channel, config_path, folders_path)`, `remember_folder` before
+`done` is sent, `known_folders`); `finish()` sends the final reply and removes the download under `Host.lock`. Fake yt-dlp moved to `native-host/testing/fake_yt_dlp.py` (slow mode
+now leaves `<file>.part`, as yt-dlp); `test_host.py` 58 tests (`HostProcess(beside=h)` = another host process in h's folder; `SavedFoldersTest`, in-process `FinishRaceTest` with hooks,
+`RevealTest` across processes). Options: `static/options.html` + `options.css`, `src/options/optionsPage.ts` `mountOptions({ settings, runtime, extensionId, doc?, timers?,
+pingTimeoutMs? })`, `options.ts` entry, `isAbsoluteFolderPath()` in `downloadDir.ts`; `test/options.test.ts`. E2E: `test-e2e/nativeHost.ts` `installTestHost()` (host copy + config,
+`host.sh` wrapper logging pids, manifest in `<user-data-dir>/NativeMessagingHosts/`), `audio.e2e.test.ts` (8 tests), `browser.ts` `userDataDir`, mock page `musicVideoType` param.
+Choices / deviations:
+- Race: "send, then remove, under the lock cancel looks up with" rather than a silent late cancel: an unknown id still gets its error and B9's cancel test stays deterministic.
+- reveal = the file's folders + this process's own (covers a file that cannot be written). A writer merges disk + its own (own last: last writer decides order); no cross-process
+  lock (writes happen only on `done`); `os.replace` retried 5 x 50 ms on PermissionError (Windows, a reader holding the file). `uninstall.ps1` removes the file too.
+- Options: override saved on commit (change), trimmed, warning only; "Audio goes to" line (override, else learned, else the host's fallback, also for a non-absolute override);
+  the extension ID is shown for install.ps1. Test connection: 15 s page timeout; late answers dropped.
+Findings (Chromium 141, real host): `<user-data-dir>/NativeMessagingHosts/<name>.json` works and is read at each connect (removing or re-registering applies at once); Chrome's
+lastError texts for a missing host and another extension's host match `CHROME_HOST_ERRORS`. With the file ignored, the e2e reveal fails exactly as B10 described (seen).
+The next phase must know:
+- B12: install steps can end with Options -> Test connection (shows the ID, versions, problems). `E2E_OPTIONS_SCREENSHOT=<file.png>` keeps light/dark screenshots.
+Left open: the host's `_quote()` JSON-escapes non-ASCII in its error sentences (an e-acute shows as backslash-u00e9), visible in refusals. Two host processes saving within the same moment could drop one
+entry until that process saves again. install.ps1/uninstall.ps1 still never ran (no PowerShell).

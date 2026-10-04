@@ -27,6 +27,8 @@ export interface MockSong {
   album: string;
   /** Seconds. */
   duration: number;
+  /** What getPlayerResponse() says: the album track (ATV) unless the URL asks for another type. */
+  musicVideoType: string;
 }
 
 /** One lyrics load by the mock BL (a refresh click, or the test asking for one). */
@@ -61,6 +63,7 @@ const song: MockSong = {
   artist: params.get("artist") ?? "Marrow & Tin",
   album: "Weather Almanac",
   duration: 72,
+  musicVideoType: params.get("musicVideoType") ?? "MUSIC_VIDEO_TYPE_ATV",
 };
 
 const mock: MockYtm = {
@@ -79,7 +82,7 @@ const player = document.createElement("div");
 player.id = "movie_player";
 Object.assign(player, {
   getVideoData: () => ({ video_id: song.videoId, title: song.title, author: song.artist }),
-  getPlayerResponse: () => ({ videoDetails: { videoId: song.videoId, musicVideoType: "MUSIC_VIDEO_TYPE_ATV" } }),
+  getPlayerResponse: () => ({ videoDetails: { videoId: song.videoId, musicVideoType: song.musicVideoType } }),
 });
 mainPanel.append(player);
 

@@ -46,7 +46,7 @@ describe("build output", () => {
   it("contains every file options.html loads", () => {
     const html = readFileSync(path.join(outdir, "options.html"), "utf8");
     const loaded = [...html.matchAll(/\b(?:src|href)="([^"]+)"/g)].map((match) => match[1]);
-    expect(loaded).toContain("options.js");
+    expect(loaded).toEqual(expect.arrayContaining(["options.js", "options.css"]));
     for (const file of loaded) expect(existsSync(path.join(outdir, file)), file).toBe(true);
   });
 

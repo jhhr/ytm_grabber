@@ -28,6 +28,17 @@ export function dirFromDownloadedPath(path: string, relativeFilename: string): s
   return parsed.join(dirs.slice(0, dirs.length - askedDirs.length));
 }
 
+/**
+ * Whether `path` is a full folder path the native host can use as it is: a Windows path from a
+ * drive's root ("C:\Music", either slash) or a UNC share ("\\server\share\Music"), or a POSIX
+ * one ("/home/me/Music"), with no control characters. A relative path, "C:Music" (relative to the
+ * drive's current folder), "\Music" (on the current drive) or "~\Music" is not: the host would
+ * refuse it and save to its fallbackOutputDir. Whether the folder exists only the host can tell.
+ */
+export function isAbsoluteFolderPath(path: string): boolean {
+  return !/[\x00-\x1f\x7f]/.test(path) && parseAbsolute(path) !== null;
+}
+
 interface AbsolutePath {
   windows: boolean;
   /** Below the root; empty segments (doubled or trailing separators) are dropped. */
