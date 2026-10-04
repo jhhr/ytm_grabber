@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B7b)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B8)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -194,6 +194,13 @@ your work in the tree and list every file you created or changed in your report.
   `blyrics.ts`. The lyrics feature is complete end to end in unit tests; nothing has run
   in a real browser yet (B8). Test helper `test/helpers/captureSummary.ts`. In jsdom
   tests read fixtures by file path (Vite rewrites `import.meta.url` to http:).
+- E2E (B8): `npm run test:e2e` (~21 s) drives the built extension in Chromium 141
+  against `test-e2e/server.ts` (HTTPS mock of music.youtube.com + BL dock + chunked SSE +
+  Unison) via `test-e2e/browser.ts` / `harness.ts`. **Real Chromium delivers BL's stream
+  body only via `streamResourceContent` (`bodySource: "stream"`)**; the request ends as
+  `loadingFailed` canceled after `event: done`. Downloads keep real names with
+  `Browser.setDownloadBehavior {behavior: "default"}` + the profile's
+  `download.default_directory`. Tests run in order in one browser.
 - Fakes: `test/helpers/fakeDebugger.ts` (`FAKE_TOKEN`, `FAKE_KEY_ID`, BL request
   builders), `fakePort.ts`, `captureHarness.ts`; `test/sw.test.ts` imports the real
   `sw.ts` under a stubbed `chrome` - extend it when you add SW wiring.
@@ -213,7 +220,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b, B8. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 

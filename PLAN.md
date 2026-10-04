@@ -514,7 +514,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part] — Done 2026-10-04 (924b11c)
 - **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part] — Done 2026-10-04 (026d0d1)
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest] — Done 2026-10-04 (e2c61e3)
-- **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible] — Done 2026-10-04
+- **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible] — Done 2026-10-04 (ab29229)
 - **B9** Native host + installer scripts + host tests [Phase 5]
 - **B10** Audio button + page bridge + SW audio relay [Phase 6]
 - **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part]
