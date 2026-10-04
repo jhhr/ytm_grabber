@@ -1,0 +1,7 @@
+node_modules/
+dist/
+# Private key for the manifest "key" (scripts/gen-key.mjs); never commit it.
+keys/
+# Real captures with copyrighted lyrics, for local tests only.
+fixtures/local/*
+!fixtures/local/README.md

@@ -1,0 +1,349 @@
+{
+  "about": [
+    "Contract for sanitizeFilename() in src/shared/filenames.ts and its Python port in the native host: both must map every input below to its expected output.",
+    "Rules, in order: (1) unpaired UTF-16 surrogates become U+FFFD; (2) < > : \" / \\ | ? *, control characters (Cc: U+0000-001F, U+007F-009F), format characters (Cf) and noncharacters (U+FDD0-FDEF, U+xFFFE, U+xFFFF) become one space each; (3) every run of whitespace (U+0020, U+00A0, U+1680, U+2000-200A, U+2028, U+2029, U+202F, U+205F, U+3000) becomes one space; (4) spaces, dots and tildes are stripped from both ends; (5) the name is cut to maxLength UTF-16 code units, one fewer if the cut would split a surrogate pair, then spaces, dots and tildes are stripped from the end again; (6) a reserved name gets a '_' prefix and step 5 runs again; (7) an empty result becomes '_'.",
+    "Reserved: the part before the first dot, with trailing spaces removed, is CON, PRN, AUX, NUL, CLOCK$, COM1-COM9, LPT1-LPT9 or COM/LPT followed by superscript 1, 2 or 3 (U+00B9, U+00B2, U+00B3), compared ASCII-case-insensitively; or the whole name is desktop.ini or thumbs.db.",
+    "Lengths count UTF-16 code units (an emoji counts 2), not code points as Python's len() does.",
+    "'%' is kept; the host doubles it for yt-dlp after sanitising.",
+    "buildStem cases are for the JavaScript side; every expected stem is also a fixed point of sanitizeFilename.",
+    "This file is pure ASCII: every other character is written as a \\u escape."
+  ],
+  "maxLength": 150,
+  "sanitizeFilename": [
+    {
+      "note": "plain stem is unchanged",
+      "input": "Daft Punk - One More Time [FGBhQbmPwH8]",
+      "expected": "Daft Punk - One More Time [FGBhQbmPwH8]"
+    },
+    {
+      "note": "each Windows-illegal character becomes a space",
+      "input": "a<b>c:d\"e/f\\g|h?i*j",
+      "expected": "a b c d e f g h i j"
+    },
+    {
+      "note": "typical title punctuation: replaced, collapsed, end stripped",
+      "input": "AC/DC: Who Made Who?",
+      "expected": "AC DC Who Made Who"
+    },
+    {
+      "note": "C0 controls (NUL, tab, CR LF, U+001F) become spaces",
+      "input": "a\u0000b\tc\r\nd\u001fe",
+      "expected": "a b c d e"
+    },
+    {
+      "note": "DEL and C1 controls (U+0085, U+009F) become spaces",
+      "input": "a\u007Fb\u0085c\u009Fd",
+      "expected": "a b c d"
+    },
+    {
+      "note": "format characters (Cf: ZWSP, ZWNJ, ZWJ, LRM, soft hyphen, BOM, word joiner) become spaces",
+      "input": "a\u200Bb\u200Cc\u200Dd\u200Ee\u00ADf\uFEFFg\u2060h",
+      "expected": "a b c d e f g h"
+    },
+    {
+      "note": "RLM marks next to spaces vanish into the collapse",
+      "input": "Hebrew \u200Fsong\u200F",
+      "expected": "Hebrew song"
+    },
+    {
+      "note": "astral format characters (emoji tag sequence) become one space each",
+      "input": "flag \uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F",
+      "expected": "flag \uD83C\uDFF4"
+    },
+    {
+      "note": "noncharacters become spaces",
+      "input": "a\uFDD0b\uFFFEc\uD83F\uDFFFd",
+      "expected": "a b c d"
+    },
+    {
+      "note": "unpaired surrogates become U+FFFD, a valid pair stays",
+      "input": "a\ud800b\udc00c\udc00\ud800d\uD83C\uDFB5",
+      "expected": "a\uFFFDb\uFFFDc\uFFFD\uFFFDd\uD83C\uDFB5"
+    },
+    {
+      "note": "Unicode spaces become ASCII spaces",
+      "input": "a\u00A0b\u3000c\u2003d\u2028e\u202Ff",
+      "expected": "a b c d e f"
+    },
+    {
+      "note": "whitespace runs collapse and the ends are stripped",
+      "input": "  lots \u00A0 of\t\tspace  ",
+      "expected": "lots of space"
+    },
+    {
+      "note": "trailing dots and spaces are stripped",
+      "input": "Song... . ",
+      "expected": "Song"
+    },
+    {
+      "note": "leading dots and tildes are stripped, and a trailing tilde",
+      "input": ".~ .hidden~",
+      "expected": "hidden"
+    },
+    {
+      "note": "tildes and dots inside are kept",
+      "input": "~Prologue~ (Live at Budokan. 1999)",
+      "expected": "Prologue~ (Live at Budokan. 1999)"
+    },
+    {
+      "note": "percent signs are kept (the host doubles them for yt-dlp afterwards)",
+      "input": "100% Pure Love",
+      "expected": "100% Pure Love"
+    },
+    {
+      "note": "other ASCII punctuation is kept",
+      "input": "Guns N' Roses - Sweet Child o' Mine (Live) [1988] & #1 {x} $@!+=,;`^",
+      "expected": "Guns N' Roses - Sweet Child o' Mine (Live) [1988] & #1 {x} $@!+=,;`^"
+    },
+    {
+      "note": "non-ASCII letters, emoji, variation selector and combining marks are kept",
+      "input": "Beyonc\u00E9 - \u591C\u306B\u99C6\u3051\u308B \u0401\u043B\u043A\u0430 e\u0301 \u2764\uFE0F \uD83C\uDFB5",
+      "expected": "Beyonc\u00E9 - \u591C\u306B\u99C6\u3051\u308B \u0401\u043B\u043A\u0430 e\u0301 \u2764\uFE0F \uD83C\uDFB5"
+    },
+    {
+      "note": "reserved device name alone",
+      "input": "con",
+      "expected": "_con"
+    },
+    {
+      "note": "reserved device name before an extension, any case",
+      "input": "CON.txt",
+      "expected": "_CON.txt"
+    },
+    {
+      "note": "reserved device name with spaces before the first dot",
+      "input": "Nul .tar.gz",
+      "expected": "_Nul .tar.gz"
+    },
+    {
+      "note": "COM with a digit",
+      "input": "com1",
+      "expected": "_com1"
+    },
+    {
+      "note": "LPT with a digit and an extension",
+      "input": "LPT9.lrc",
+      "expected": "_LPT9.lrc"
+    },
+    {
+      "note": "COM with a superscript digit (U+00B9)",
+      "input": "COM\u00B9.txt",
+      "expected": "_COM\u00B9.txt"
+    },
+    {
+      "note": "CLOCK$ (reserved by Chrome)",
+      "input": "clock$",
+      "expected": "_clock$"
+    },
+    {
+      "note": "desktop.ini (reserved by Chrome)",
+      "input": "Desktop.ini",
+      "expected": "_Desktop.ini"
+    },
+    {
+      "note": "thumbs.db (reserved by Chrome)",
+      "input": "thumbs.db",
+      "expected": "_thumbs.db"
+    },
+    {
+      "note": "not reserved: COM10",
+      "input": "com10",
+      "expected": "com10"
+    },
+    {
+      "note": "not reserved: COM0",
+      "input": "COM0",
+      "expected": "COM0"
+    },
+    {
+      "note": "not reserved: a longer word starting with a device name",
+      "input": "Console.txt",
+      "expected": "Console.txt"
+    },
+    {
+      "note": "not reserved: case-insensitivity is ASCII only (U+212A KELVIN SIGN is not k)",
+      "input": "cloc\u212A$",
+      "expected": "cloc\u212A$"
+    },
+    {
+      "note": "not reserved: case-insensitivity is ASCII only (U+017F LONG S is not s)",
+      "input": "de\u017Fktop.ini",
+      "expected": "de\u017Fktop.ini"
+    },
+    {
+      "note": "reserved name exposed by stripping",
+      "input": "CON?",
+      "expected": "_CON"
+    },
+    {
+      "note": "dotted artist with a reserved base",
+      "input": "Con. Funk Shun - Ffun [abcdefghijk]",
+      "expected": "_Con. Funk Shun - Ffun [abcdefghijk]"
+    },
+    {
+      "note": "empty input",
+      "input": "",
+      "expected": "_"
+    },
+    {
+      "note": "nothing left after replacing",
+      "input": "?*?",
+      "expected": "_"
+    },
+    {
+      "note": "nothing left after stripping",
+      "input": ". ~ .",
+      "expected": "_"
+    },
+    {
+      "note": "over-long ASCII is cut to 150",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "note": "over-long CJK (1 code unit each) is cut to 150 characters",
+      "input": "\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5",
+      "expected": "\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5\u65E5"
+    },
+    {
+      "note": "the cut exposes trailing dots and spaces, which are stripped",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa .xyyyyyyyyyy",
+      "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "note": "an emoji straddling the cap is dropped whole, never split",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\uD83C\uDFB5b",
+      "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "note": "an emoji ending exactly at the cap is kept (150 code units, 149 code points)",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\uD83C\uDFB5bb",
+      "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\uD83C\uDFB5"
+    },
+    {
+      "note": "80 emoji are 160 code units: cut to 75 (Python len() would see 80 <= 150)",
+      "input": "\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5",
+      "expected": "\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5\uD83C\uDFB5"
+    },
+    {
+      "note": "reserved name exposed by the cut",
+      "input": "con~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~x",
+      "expected": "_con"
+    },
+    {
+      "note": "the prefix pushes a reserved name over the cap, so it is cut again",
+      "input": "con.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "_con.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "buildStem": [
+    {
+      "note": "artist and title",
+      "artist": "Daft Punk",
+      "title": "One More Time",
+      "videoId": "FGBhQbmPwH8",
+      "expected": "Daft Punk - One More Time [FGBhQbmPwH8]"
+    },
+    {
+      "note": "illegal characters in both parts",
+      "artist": "AC/DC",
+      "title": "Who Made Who?",
+      "videoId": "PiZHNw1MtzI",
+      "expected": "AC DC - Who Made Who [PiZHNw1MtzI]"
+    },
+    {
+      "note": "artist missing",
+      "title": "Intro",
+      "videoId": "abcdefghijk",
+      "expected": "Intro [abcdefghijk]"
+    },
+    {
+      "note": "title null",
+      "artist": "Some Artist",
+      "title": null,
+      "videoId": "abcdefghijk",
+      "expected": "Some Artist [abcdefghijk]"
+    },
+    {
+      "note": "both parts empty after cleaning; ids may start with a dash",
+      "artist": " \u200B ",
+      "title": "???",
+      "videoId": "-abcdefghij",
+      "expected": "[-abcdefghij]"
+    },
+    {
+      "note": "dots inside the stem are kept",
+      "artist": "P.O.D.",
+      "title": "Wait...",
+      "videoId": "abcdefghijk",
+      "expected": "P.O.D. - Wait... [abcdefghijk]"
+    },
+    {
+      "note": "dots and tildes at the start of the stem are stripped",
+      "title": "...~Baby~",
+      "videoId": "abcdefghijk",
+      "expected": "Baby~ [abcdefghijk]"
+    },
+    {
+      "note": "whitespace and format characters inside parts",
+      "artist": "  Ar\u200Btist ",
+      "title": "Ti\u00A0tle\n",
+      "videoId": "abcdefghijk",
+      "expected": "Ar tist - Ti tle [abcdefghijk]"
+    },
+    {
+      "note": "non-ASCII parts",
+      "artist": "YOASOBI",
+      "title": "\u591C\u306B\u99C6\u3051\u308B",
+      "videoId": "x8VYWazR5mE",
+      "expected": "YOASOBI - \u591C\u306B\u99C6\u3051\u308B [x8VYWazR5mE]"
+    },
+    {
+      "note": "reserved base before a dot gets the prefix",
+      "artist": "Con. Funk Shun",
+      "title": "Ffun",
+      "videoId": "abcdefghijk",
+      "expected": "_Con. Funk Shun - Ffun [abcdefghijk]"
+    },
+    {
+      "note": "a device name without a dot is not reserved inside a stem",
+      "artist": "CON",
+      "title": "",
+      "videoId": "abcdefghijk",
+      "expected": "CON [abcdefghijk]"
+    },
+    {
+      "note": "over-long: the artist/title part is cut, the id survives (150)",
+      "artist": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "videoId": "abcdefghijk",
+      "expected": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA - TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT [abcdefghijk]"
+    },
+    {
+      "note": "a cut ending in a space drops the space (149)",
+      "artist": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "title": "B",
+      "videoId": "abcdefghijk",
+      "expected": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA [abcdefghijk]"
+    },
+    {
+      "note": "a cut can leave the separator dash (150)",
+      "artist": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "title": "B",
+      "videoId": "abcdefghijk",
+      "expected": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA - [abcdefghijk]"
+    },
+    {
+      "note": "an emoji straddling the 136-unit label budget is dropped whole (149)",
+      "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\uD83C\uDFB5",
+      "videoId": "abcdefghijk",
+      "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa [abcdefghijk]"
+    },
+    {
+      "note": "reserved and over-long: prefix, then cut (150)",
+      "artist": "con.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "videoId": "abcdefghijk",
+      "expected": "_con.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa [abcdefghijk]"
+    }
+  ]
+}

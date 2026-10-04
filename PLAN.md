@@ -226,7 +226,7 @@ ytm-practice-grabber/
   }
   ```
   Implements the table in §1.5. Empty strings / missing fields produce no entry. Also returns `metadata` (`song`, `artist`, `album`, `duration`, `videoId`) from the `metadata` event.
-- **`buildStem({ artist, title, videoId })`** → `"Artist - Title [videoId]"`; **`sanitizeFilename()`** for Windows: replace `<>:"/\|?*` and control chars, collapse whitespace, trim trailing dots/spaces, avoid reserved names (`CON`, `NUL`, `COM1`…), cap at ~150 chars. The audio file and all lyrics files use the **same stem**, so they sort together:
+- **`buildStem({ artist, title, videoId })`** → `"Artist - Title [videoId]"`; **`sanitizeFilename()`** for Windows: replace `<>:"/\|?*` and control chars, collapse whitespace, trim trailing dots/spaces, avoid reserved names (`CON`, `NUL`, `COM1`…), cap at ~150 chars. *(B1: `chrome.downloads` is stricter than Windows: it also rejects format characters such as ZWJ, LRM or soft hyphen, C1 controls, noncharacters, whitespace/`.`/`~` at either end, `CLOCK$`, `desktop.ini` and `thumbs.db` (checked in Chromium 141), so the rules cover both. The exact rules, and the 150 UTF-16-unit cap that cuts the artist/title part and never `[videoId]`, are in `test/fixtures/sanitize-vectors.json`.)* The audio file and all lyrics files use the **same stem**, so they sort together:
   `Artist - Title [id].opus`, `Artist - Title [id].ttml` (the Tony pick), `Artist - Title [id].musixmatch.lrc`, …
 - **`blyrics.ts`** — every BL selector and the `displayName → source id(s)` map live here, with a comment `// verified against Better Lyrics 3.0.0.4`. Musixmatch maps to `musixmatch-word` first, then `musixmatch`; LRCLib to `lrclib`, then `lrclib-plain`.
 - **`writeTonyTtml({ title, lines })`** where `lines: { words: { pieces: { text, begin, end }[] }[] }[]` (seconds, absolute) → the TTML in §1.6: times `m:ss.mmm` rounded to the millisecond; pieces of one word written as adjacent `<span>`s with no whitespace; words separated by one space; `<p>` begin/end = first piece begin / last piece end; `itunes:key="L<n>"`; `<body dur>` and `<div>` end = last end; text XML-escaped; never a DOCTYPE. Test: output for a small synthetic input matches a golden file byte for byte.
@@ -491,7 +491,7 @@ The work is done by a line of phase agents, one build phase each, run by a lead 
 
 Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in brackets.
 
-- **B1** Scaffold + `filenames.ts` [Phase 1, part of 2]
+- **B1** Scaffold + `filenames.ts` [Phase 1, part of 2] — Done 2026-10-04
 - **B2** `sse.ts` + `sources.ts` + synthetic fixture [Phase 2]
 - **B3** `ttml.ts` writer + enhanced-LRC word converter + Tony-rules test reader [Phase 2b, part]
 - **B4** QRC converter + `tonyPick.ts` + `blyrics.ts` [Phase 2b, rest]

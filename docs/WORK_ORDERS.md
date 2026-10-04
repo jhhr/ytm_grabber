@@ -315,3 +315,29 @@ Template:
     Choices / deviations: ...
     The next phase must know: ...
     Left open: ...
+
+### B1 — 2026-10-04
+Built: scaffold (TypeScript 7.0.2 native `tsc`, esbuild 0.28, Vitest 5 on Vite 8), `build.mjs`
+(`--outdir`, `--watch`), §3.1 manifest, icons from `scripts/make-icons.mjs`, stubs, `gen-key.mjs`,
+`src/shared/filenames.ts` + `test/fixtures/sanitize-vectors.json`; tests: filenames, key/ID, build.
+**Extension ID `mengelecikhhdpjdebjpokcmhdkhjobj`** (pinned in `test/gen-key.test.ts`; Chromium 141
+loading `dist/` reports the same). Private key `keys/extension-key.pem` exists only in this tree.
+Choices / deviations:
+- `tsconfig.json` = `src/` with `types: ["chrome"]` only; `test/tsconfig.json` extends it with
+  `node` and `allowJs` (tests import `scripts/*.mjs`); `typecheck` runs both. @types/node ^22.
+- Illegal characters become a space. `chrome.downloads` rejects far more than Windows (Cf such as
+  ZWJ/LRM/soft hyphen, C1, noncharacters, whitespace/`.`/`~` at either end, CLOCK$, desktop.ini,
+  thumbs.db), so the rules cover both (PLAN §3.2 noted); Chromium 141 accepted 1028 outputs.
+- Cap = 150 UTF-16 units; `buildStem` cuts only "Artist - Title" (to 136), its output is a fixed
+  point of `sanitizeFilename`, and it throws unless `isVideoId(videoId)` (`^[A-Za-z0-9_-]{11}$`).
+- `build.mjs` empties only the default `dist/`, never a custom `--outdir`.
+The next phase must know:
+- B9: count UTF-16 units, not `len()` (emoji vectors at the cap); reserved names are ASCII-case-
+  insensitive (`re.ASCII`: plain IGNORECASE matches the Kelvin sign to `k`); check ids with
+  `re.fullmatch` (`$` matches before a trailing newline); Cf via `unicodedata.category`.
+- B6/B8: under this container's default C locale Linux Chromium rejects every non-ASCII download
+  filename ("Invalid filename"); launch it with `LANG=C.UTF-8`.
+- Backslash-u escapes written through Write/Edit arrive as literal characters (a literal U+2028
+  broke a regex); in code use the `\u{...}` or `\xNN` forms, which survive.
+Left open: with the per-song subfolder, `<dir>\<stem>\<stem><ext>` can exceed Windows' 260-char
+MAX_PATH for near-cap stems (150 + 1 + ~170 + dir); typical stems are far shorter.

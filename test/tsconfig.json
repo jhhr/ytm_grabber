@@ -1,0 +1,10 @@
+{
+  // Tests, vitest.config.ts and the Node scripts they import (allowJs: the .mjs
+  // scripts are typed from their JSDoc but not checked).
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["chrome", "node"],
+    "allowJs": true
+  },
+  "include": [".", "../vitest.config.ts"]
+}
