@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B3)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B4)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -144,6 +144,18 @@ your work in the tree and list every file you created or changed in your report.
   refuses - callers check `lines.length > 0`).
 - `src/shared/convert/musixmatchWord.ts`: `parseEnhancedLrc(text)` -> `TimedLine[]` for
   every `format === "enhanced-lrc"` source (Musixmatch word-by-word, Unison richsync).
+- `src/shared/convert/qrc.ts`: `parseQrc(text, { title?, artist? })` -> `TimedLine[]`
+  (all leading credit lines dropped; uniform-timing credit test only in the first 5).
+- `src/shared/tonyPick.ts`: `tonyReady(source, ctx)` -> `{ ok: true, content, ext,
+  filename, timing, converted, label }` | `{ ok: false, reason }`; `pickForTony(sources,
+  ctx)` -> `{ pick: (file + source) | null, skipped }`; `ctx = { stem, title, metadata? }`
+  (`title` = "Artist - Title"); `TONY_MAX_BYTES`. Order and gap decisions: PLAN 7.1.
+- `src/shared/blyrics.ts`: `BL_SELECTORS` (dock, inner, controls, refresh, refreshBusy,
+  sourceName, offsetValue, sidePanel, lyricsWrapper, lyricsContainer),
+  `BL_DOCK_POSITION_ATTRIBUTE`, `BL_VERIFIED_VERSION`, `sourcesForDisplayName(name,
+  sources)` -> `{ downloadable: true, sources }` | `{ downloadable: false, why, reason }`.
+- Content may hold lone surrogates: `encodeURIComponent` throws on them (use TextEncoder
+  or replace them before building a data URL).
 - Test helpers: `test/helpers/tonyReader.ts` `readTony()` - an independent oracle of
   Tony's TTML rules; use it for round trips. `@braccato/parsers` 0.3.2 is a pinned
   devDependency: tests may compare against BL's own parsers (`parseLRC`, `parseQRC`).
@@ -156,7 +168,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
@@ -486,3 +498,8 @@ The next phase must know:
   does not say LRC (its `ext` does).
 - As-is content may hold lone surrogates (JSON `\ud800`): `encodeURIComponent` throws on them (B6 data URLs); TextEncoder does not.
 Left open: `fixtures/local/` is empty, so the real-capture QQ test skips.
+
+### Lead after B4 — 2026-10-04 — bcc8ce5
+Changed `parseQrc`: any number of leading credit lines is dropped (stop rule kept); only the
+uniform-timing test is limited to the first 5 lyric lines (PLAN 3.2.2 note). Tests updated
+and seen failing with the window removed. B2-B4 each used ~260-275k tokens.
