@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B4)
+## 3. State of the code (kept by the lead; as of 2026-10-04, after B5a)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -154,6 +154,19 @@ your work in the tree and list every file you created or changed in your report.
   sourceName, offsetValue, sidePanel, lyricsWrapper, lyricsContainer),
   `BL_DOCK_POSITION_ATTRIBUTE`, `BL_VERIFIED_VERSION`, `sourcesForDisplayName(name,
   sources)` -> `{ downloadable: true, sources }` | `{ downloadable: false, why, reason }`.
+- Background so far: `src/background/sw.ts` creates ONE capture store over
+  `chrome.storage.session` and a top-level `chrome.runtime.onMessage` listener
+  (`src/background/requests.ts` `createMessageListener({ store })`; `capture:get`
+  answered, `lyrics:download` a stub until B6). `src/background/store.ts`
+  `createCaptureStore({ area, ... })` -> `put(StoredCapture)`, `get(videoId)` (record +
+  derived `sources`).
+- `src/shared/summary.ts` (`StoredCapture`, `BodySource`, `summarize(capture, sources)` -
+  never contents; its Tony pick uses a placeholder stem), `messages.ts` (requests,
+  `CAPTURE_PORT = "capture"` with `start` / `ready` / `done` / `error`, guards that
+  check shapes + `isVideoId`), `settings.ts` (`createSettingsStore(area)`; one item per
+  setting), `storageArea.ts` (area interfaces, `isQuotaError`, `storedItemBytes`).
+- Fakes: `test/helpers/fakeStorage.ts` (`FakeStorageArea` with quota, call log,
+  `writtenText()` for secret checks, failure hooks; `FakeEvent`).
 - Content may hold lone surrogates: `encodeURIComponent` throws on them (use TextEncoder
   or replace them before building a data URL).
 - Test helpers: `test/helpers/tonyReader.ts` `readTony()` - an independent oracle of
@@ -168,7 +181,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3, B4. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4, B5a. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
