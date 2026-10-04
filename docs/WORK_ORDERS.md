@@ -613,3 +613,29 @@ The next phase must know:
 - B8: Chrome caps URLs at 2 MiB characters (`url::kMaxURLChars`); base64 makes a raw stream over ~1.5 MB a URL that long: check it saves.
 Left open: the menu's Tony label is the summary's (placeholder title); in the rare case where only the title pushes a converted pick over 1 MiB the
 download falls to the next candidate (tested) and the label is stale. A pick with `tonySkipped` entries shows no warning in the menu.
+
+### B7a — 2026-10-04
+Built: `src/shared/bridgeProtocol.ts` (event names, `PlayerInfo`, JSON-string request/reply codecs that type every field); `page-bridge.ts`
+(answers every well-formed request with `{ requestId, videoId, title, author, musicVideoType }`, nulls for what `#movie_player` cannot tell, each
+player call in its own try); `nowPlaying.ts` (`askBridge`, `getNowPlaying(timeoutMs = 300)`, `nowPlayingFromPage`, `stemFor` -> `{ stem } |
+{ stem: null, reason }`, `PLAYER_BAR_SELECTORS`); `lyricsButton.ts` `mountLyricsButton({ root?, onClick })` -> `{ dispose }`; `main.ts` (guard
+`data-pg-grabber` on <html>; click stub logs the stem); `styles.css`. Helper `test/helpers/blPage.ts`; tests `lyricsButton`, `pageBridge`,
+`nowPlaying`, `contentMain`. jsdom ^29.1.1: 30.x requires Node ^22.22.2 and this container has 22.22.0.
+Choices / deviations:
+- The bridge's answer is used whole when its videoId passes `isVideoId`, else the page's (URL `v` + player bar), never a mix, so a stem does not
+  depend on which side filled a field. `author` kept as given (may be "X - Topic"; unverified). "(user check)" stands for the 👤 mark (ASCII sources).
+- Checks are coalesced, not debounced: the first childList change arms one 100 ms timer and later ones ride on it (<= 10 checks/s; a steady stream
+  cannot starve them); a check is <= 4 querySelector calls and ends with `takeRecords()` (drops our own changes). Observed: `#side-panel`'s subtree
+  plus each ancestor's child list, so a replaced panel or page re-widens to root; never attributes or text.
+- Dock button: right after `:scope > __controls`, else appended to `__inner` (BL's later prepend leaves it right after). One element, reused.
+- Fallback: lyrics up = `.blyrics-container` in `#side-panel` for 3 s with no `__inner` (PLAN 3.5 note). The floating button sits in our own
+  zero-height `.pg-floating-anchor` prepended to `#side-panel` (relative; button absolute, top 64 px as BL's top dock, right 12 px); CSS `:has()`
+  hides it when YTM's tab is not Lyrics. It goes when a dock appears or the lyrics go (back 3 s after the next song's lyrics).
+- Styles: BL has no custom properties for its controls, so its values (28 px, 9 px radius, white 60/95 %, row opacity 0.72) are copied into our
+  `--pg-btn-*`; `:hover > .pg-dock-btn` brightens with BL's row without naming BL classes; focus ring by box-shadow (BL sets `outline: none`).
+  The floating button has its own dark background and border: readable on any backdrop (not flipped by `prefers-color-scheme`: YTM stays dark).
+The next phase must know:
+- B7b: replace the click stub in `main.ts`; `onClick(button, event)` gets the dock or the floating button; `getNowPlaying()` then `stemFor()`;
+  `blPage.ts` builds BL's dock (`mountDock({ position, controls })`, refresh button, source name), voting and lyrics in jsdom.
+- B8: check the button is visible in the real dock, and where the floating anchor lands in the real `#side-panel` (flex/grid there is unverified).
+Left open: a dock whose controls are all turned off is hidden by BL's CSS, and our button with it (no fallback then: the dock exists).

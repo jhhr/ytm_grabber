@@ -1,1 +1,109 @@
 /* Content script styles (dist/content.css). Own pg- classes only, never BL's (spec 3.5). */
+
+/* The lyrics button in Better Lyrics' dock, sized and coloured like BL 3.0.0.4's
+   .blyrics-dock__control (28 px, 9 px radius, white at 60 % / 95 % on hover) and dimmed to 72 %
+   like BL's control group until the dock is hovered. BL defines no custom properties for these,
+   so the values are copied; ours are named so they can be tuned in one place. The dock is BL's
+   dark glass over YTM's dark page in either colour scheme, so white strokes stay readable, as BL's
+   own icons are. */
+.pg-dock-btn,
+.pg-floating-btn {
+  --pg-btn-fg: hsla(0, 0%, 100%, 0.6);
+  --pg-btn-fg-hover: hsla(0, 0%, 100%, 0.95);
+  --pg-btn-bg-hover: hsla(0, 0%, 100%, 0.16);
+  --pg-btn-focus: hsla(0, 0%, 100%, 0.7);
+  --pg-btn-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--pg-btn-fg);
+  font: inherit;
+  line-height: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    background-color 160ms var(--pg-btn-ease),
+    color 160ms var(--pg-btn-ease),
+    opacity 200ms var(--pg-btn-ease);
+}
+
+.pg-dock-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  opacity: 0.72;
+}
+
+/* The parent is BL's dock row: brighten with BL's controls while it is hovered or focused. */
+:hover > .pg-dock-btn,
+:focus-within > .pg-dock-btn {
+  opacity: 1;
+}
+
+.pg-dock-btn:hover,
+.pg-floating-btn:hover {
+  background-color: var(--pg-btn-bg-hover);
+  color: var(--pg-btn-fg-hover);
+}
+
+/* BL turns the outline off for every button in its dock; a ring keeps keyboard focus visible. */
+.pg-dock-btn:focus-visible,
+.pg-floating-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--pg-btn-focus);
+}
+
+.pg-dock-btn svg,
+.pg-floating-btn svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* Fallback when BL shows lyrics without a dock. The anchor is our own zero-height box, prepended
+   to #side-panel: it spans the panel's width and is the containing block of the button, which
+   sits at the top right, 64 px down like BL's own top dock positions (clear of YTM's tab row).
+   Nothing of YTM's or BL's is restyled. */
+.pg-floating-anchor {
+  position: relative;
+  z-index: 50; /* BL's dock level */
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+/* Over whatever the side panel shows, so it brings its own background and border: readable on
+   dark and on light backgrounds alike. */
+.pg-floating-btn {
+  --pg-btn-fg: hsla(0, 0%, 100%, 0.85);
+  --pg-btn-fg-hover: #fff;
+  --pg-btn-bg-hover: hsl(0, 0%, 22%);
+
+  position: absolute;
+  top: 64px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid hsla(0, 0%, 100%, 0.18);
+  border-radius: 12px;
+  background-color: hsla(0, 0%, 9%, 0.88);
+  box-shadow: rgba(0, 0, 0, 0.35) 0 6px 18px -8px;
+}
+
+.pg-floating-btn:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--pg-btn-focus),
+    rgba(0, 0, 0, 0.35) 0 6px 18px -8px;
+}
+
+/* BL hides its lyrics on every tab but Lyrics; the floating button goes with them. */
+#side-panel:has(#tab-renderer:not([page-type="MUSIC_PAGE_TYPE_TRACK_LYRICS"])) > .pg-floating-anchor {
+  display: none;
+}

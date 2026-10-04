@@ -306,7 +306,7 @@ Edge cases to handle:
 ### 3.5 Lyrics button + menu (`content/lyricsButton.ts`, `content/menu.ts`)
 
 - A `MutationObserver` (debounced) watches for `.blyrics-dock__inner`; insert one `<button class="pg-dock-btn">` with a download icon into `__inner` (after `__controls`). Re-insert if BL removes it. Style it to sit visually with BL's controls (size/radius/colour via BL's CSS where it inherits; own class names only — don't reuse BL classes, so BL's own `querySelector`s never pick up our element).
-- **Fallback** when no dock exists ~3 s after `#side-panel` has BL lyrics: a small floating button in the top-right of `#side-panel`.
+- **Fallback** when no dock exists ~3 s after `#side-panel` has BL lyrics: a small floating button in the top-right of `#side-panel`. *(B7a, from BL 3.0.0.4: `#blyrics-wrapper` is appended to `#tab-renderer` once and emptied between songs, so "lyrics up" means a `.blyrics-container` in `#side-panel`. For a song without lyrics BL renders its "not found" line into that container and unmounts the dock, so the floating button shows then too.)*
 - Click:
   1. `capture:get` for the current videoId. If missing → show "Capturing…" state, run the on-demand flow (§3.3). If `.blyrics-dock__refresh` is missing, show: *"Turn on BL's refresh button in its dock settings, or enable Always-capture in this extension's options."*
   2. Open a popover appended to `document.body`, positioned next to the button (flip up/down like BL's menu does based on `data-position`). Esc / outside-click closes it.
@@ -503,7 +503,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B5a** Messages + settings + capture store [Phase 3, part] — Done 2026-10-04 (69e9560)
 - **B5b** Capture manager, always-attached mode [Phase 3, rest] — Done 2026-10-04 (0eb449e)
 - **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part] — Done 2026-10-04 (924b11c)
-- **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part]
+- **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part] — Done 2026-10-04
 - **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest]
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible]
 - **B9** Native host + installer scripts + host tests [Phase 5]
