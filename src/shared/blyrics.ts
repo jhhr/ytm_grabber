@@ -34,6 +34,22 @@ export const BL_SELECTORS = {
 /** The dock's attribute naming its corner, e.g. "bottom-right". */
 export const BL_DOCK_POSITION_ATTRIBUTE = "data-position";
 
+// BL writes its per-song offset as `${value > 0 ? "+" : ""}${value.toFixed(1)}s` ("+0.2s",
+// "-1.5s", "0.0s", even "-0.0s"). Read leniently in case that changes: an optional sign (also
+// U+2212), a decimal point or comma, white space, and an optional unit (seconds unless "ms").
+const OFFSET_TEXT = /^([+\-\u{2212}]?)\s*(\d+(?:[.,]\d*)?|[.,]\d+)\s*(ms|s|secs?|seconds?)?$/iu;
+
+/** BL's per-song offset text in seconds, or null when it is not a number (`-0.0s` is zero). */
+export function parseBlOffset(text: string): number | null {
+  const match = OFFSET_TEXT.exec(text.trim());
+  if (!match) return null;
+  const [, sign, digits, unit] = match;
+  const value = Number(digits.replace(",", ".")) / (unit?.toLowerCase() === "ms" ? 1000 : 1);
+  if (!Number.isFinite(value)) return null;
+  // No negative zero: "-0.0s" is plain 0.
+  return sign === "" || sign === "+" || value === 0 ? value : -value;
+}
+
 // Display name -> our source ids, best first. BL names a provider the same whatever its timing
 // (Musixmatch word-by-word and line-synced are both "Musixmatch"), so a name can mean several
 // sources. Names are not localised.

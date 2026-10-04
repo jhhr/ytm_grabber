@@ -155,6 +155,8 @@ function createButton(doc: Document, className: string, onClick: LyricsButtonOpt
   button.type = "button";
   button.className = className;
   button.setAttribute("aria-label", LYRICS_BUTTON_LABEL);
+  // It opens the lyrics menu (menu.ts), which sets aria-expanded while open.
+  button.setAttribute("aria-haspopup", "menu");
   button.title = LYRICS_BUTTON_LABEL;
   button.append(downloadIcon(doc));
   button.addEventListener("click", (event) => onClick(button, event));

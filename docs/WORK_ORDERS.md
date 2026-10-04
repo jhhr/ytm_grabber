@@ -646,3 +646,27 @@ The next phase must know:
   `blPage.ts` builds BL's dock (`mountDock({ position, controls })`, refresh button, source name), voting and lyrics in jsdom.
 - B8: check the button is visible in the real dock, and where the floating anchor lands in the real `#side-panel` (flex/grid there is unverified).
 Left open: a dock whose controls are all turned off is hidden by BL's CSS, and our button with it (no fallback then: the dock exists).
+
+### B7b — 2026-10-04
+Built: `src/content/menu.ts` (`openMenu({ anchor, items, onSelect })` -> `{ anchor, element, close, setBusy }`, `currentMenu()`; `div.pg-menu` in <body>, ARIA
+menu with roving focus, Esc/Tab/outside-click close, up from a bottom dock / down from a top one / by free room without a dock, clamped); `lyricsFlow.ts`
+(`createLyricsFlow({ runtime, settings, toaster?, timers?, nowPlaying?, doc?, log? })` -> `{ onClick }`; `FLOW_TEXT`, `offsetNote`); `toast.ts`
+(`createToaster()`, one `div.pg-toast`, 6 s, `pageTimers`); `main.ts` wires chrome.* through call-time wrappers and `createSettingsStore(chrome.storage.local)`;
+`styles.css` (busy pulse, menu, toast); `blyrics.ts` `parseBlOffset`; the button gets `aria-haspopup="menu"`. Helpers `test/helpers/captureSummary.ts`;
+`blPage.ts` `mountDock({ sourceName, refresh, offset })` + BL's `__source-position` span. Tests `menu`, `lyricsFlow`, `toast`, `blyrics` (offset);
+`contentMain` rewritten (the click stub is gone; it now opens the menu and checks the reload message).
+Choices / deviations (PLAN 3.5 note):
+- Any chrome.* failure (sync throw, rejection, port `lastError`) matching /context invalidated/ -> "The extension was reloaded: reload this tab"; others ->
+  "Could not reach the extension's background (<Chrome's words>); try again". One-shot requests give up after 15 s; the capture guard is 35 s.
+- Offset note only for files of the playing song's capture. `parseBlOffset`: sign (also U+2212), point or comma, s/sec/seconds/ms; "-0.0s" is 0.
+- No refresh button in always mode: the port opens and a toast says the capture waits for BL's next lyrics. A `done` for another video asks again
+  what is playing (song changed mid-capture) before deciding `forPlayingVideo` and the stem.
+- Disabled items: second line = reason (also the tooltip), not focusable; the other-song note shows its song instead. Outside click: capture phase on
+  `document`; focus goes back to the button only if it was in the menu or on <body>. Keys the menu handles stop there (YTM's Space shortcut).
+- A failed download keeps the menu open; a pending one makes the menu ignore further choices.
+The next phase must know:
+- B8: the flow clicks `.blyrics-dock__refresh` on `ready` unless it has `--busy`; the mock refresh button must POST then. Menu items are
+  `.pg-menu [role=menuitem]` with `.pg-menu__label` text; toasts `.pg-toast`.
+- Tests: `vi.resetModules()` gives main.ts its own copy of menu.ts (check the DOM, not `currentMenu()`); in jsdom tests Vite rewrites
+  `new URL("../x", import.meta.url)` to an http: URL, so read fixtures by path. B10: pass main.ts's toaster in rather than making another.
+Left open: the menu is not moved on resize or scroll. Whether `runtime.connect` throws or disconnects once the context is invalidated is handled both ways, unverified.

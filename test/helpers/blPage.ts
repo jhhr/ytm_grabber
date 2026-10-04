@@ -18,21 +18,50 @@ export function addPlayerPage(doc: Document = document): { page: HTMLElement; ma
   return { page, mainPanel, sidePanel };
 }
 
-/** A fresh control set: source name, a toggle and the refresh button. */
-export function buildControls(doc: Document = document, sourceName = "Better Lyrics"): HTMLElement {
+export interface ControlOptions {
+  /** The refresh button is one of the controls the user can turn off. Default true. */
+  refresh?: boolean;
+  /** The per-song offset control with this value text (BL writes e.g. "+0.2s"); none when absent. */
+  offset?: string;
+}
+
+/**
+ * A fresh control set: source name (with BL's `__source-position` beside it), a toggle, the refresh
+ * button and, when asked for, the offset control (`__offset > __offset-value` between its steps).
+ */
+export function buildControls(doc: Document = document, sourceName = "Better Lyrics", { refresh = true, offset }: ControlOptions = {}): HTMLElement {
   const controls = doc.createElement("div");
   controls.className = "blyrics-dock__controls";
   const source = doc.createElement("div");
   source.className = "blyrics-dock__source";
+  const label = doc.createElement("span");
+  label.className = "blyrics-dock__source-label";
   const name = doc.createElement("span");
   name.className = "blyrics-dock__source-name";
   name.textContent = sourceName;
-  source.append(name);
+  const position = doc.createElement("span");
+  position.className = "blyrics-dock__source-position";
+  position.textContent = "1/5";
+  label.append(name, position);
+  source.append(label);
   const toggle = doc.createElement("button");
   toggle.className = "blyrics-dock__control";
-  const refresh = doc.createElement("button");
-  refresh.className = "blyrics-dock__control blyrics-dock__refresh";
-  controls.append(source, toggle, refresh);
+  controls.append(source, toggle);
+  if (refresh) {
+    const button = doc.createElement("button");
+    button.className = "blyrics-dock__control blyrics-dock__refresh";
+    controls.append(button);
+  }
+  if (offset !== undefined) {
+    const control = doc.createElement("div");
+    control.className = "blyrics-dock__offset";
+    const value = doc.createElement("span");
+    value.className = "blyrics-dock__offset-value";
+    value.textContent = offset;
+    const step = () => Object.assign(doc.createElement("button"), { className: "blyrics-dock__offset-step" });
+    control.append(step(), value, step());
+    controls.append(control);
+  }
   return controls;
 }
 
@@ -41,7 +70,13 @@ export function buildControls(doc: Document = document, sourceName = "Better Lyr
  * then replaces the controls (`replaceWith`) or prepends them. `controls: false` mounts the dock
  * with an empty inner, as no song has loaded yet.
  */
-export function mountDock({ doc = document, position = "bottom-right", controls = true }: { doc?: Document; position?: string; controls?: boolean } = {}): HTMLElement {
+export function mountDock({
+  doc = document,
+  position = "bottom-right",
+  controls = true,
+  sourceName,
+  ...controlOptions
+}: { doc?: Document; position?: string; controls?: boolean; sourceName?: string } & ControlOptions = {}): HTMLElement {
   let dock = doc.querySelector<HTMLElement>(".blyrics-dock");
   if (!dock) {
     dock = doc.createElement("div");
@@ -54,7 +89,7 @@ export function mountDock({ doc = document, position = "bottom-right", controls 
   dock.dataset.position = position;
   const inner = dock.querySelector<HTMLElement>(".blyrics-dock__inner")!;
   if (controls) {
-    const fresh = buildControls(doc);
+    const fresh = buildControls(doc, sourceName, controlOptions);
     const existing = inner.querySelector(".blyrics-dock__controls");
     if (existing) existing.replaceWith(fresh);
     else inner.prepend(fresh);

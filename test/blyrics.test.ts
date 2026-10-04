@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { BL_DOCK_POSITION_ATTRIBUTE, BL_SELECTORS, BL_VERIFIED_VERSION, sourcesForDisplayName } from "../src/shared/blyrics";
+import { BL_DOCK_POSITION_ATTRIBUTE, BL_SELECTORS, BL_VERIFIED_VERSION, parseBlOffset, sourcesForDisplayName } from "../src/shared/blyrics";
 import { extractSources, type LyricsSource } from "../src/shared/sources";
 import { parseSse, type SseEvent } from "../src/shared/sse";
 
@@ -90,5 +90,39 @@ describe("sourcesForDisplayName", () => {
     const raw = extractSources([undecodable]).sources;
     expect(raw.map((source) => [source.id, source.format])).toEqual([["golyrics", "json"]]);
     expect(sourcesForDisplayName("Better Lyrics", raw)).toMatchObject({ downloadable: false, why: "not-captured" });
+  });
+});
+
+describe("parseBlOffset", () => {
+  it("reads BL's own format (value.toFixed(1) + s, plus sign when positive)", () => {
+    expect(parseBlOffset("+0.2s")).toBe(0.2);
+    expect(parseBlOffset("-1.5s")).toBe(-1.5);
+    expect(parseBlOffset("0.0s")).toBe(0);
+    expect(parseBlOffset("+12.3s")).toBe(12.3);
+  });
+
+  it("gives plain zero for negative zero", () => {
+    expect(Object.is(parseBlOffset("-0.0s"), 0)).toBe(true);
+    expect(Object.is(parseBlOffset("-0"), 0)).toBe(true);
+  });
+
+  it("is lenient: no unit, white space, decimal comma, a minus sign, ms, a bare fraction", () => {
+    expect(parseBlOffset("0s")).toBe(0);
+    expect(parseBlOffset("2")).toBe(2);
+    expect(parseBlOffset("  +0.25 s ")).toBe(0.25);
+    expect(parseBlOffset("+0,5s")).toBe(0.5);
+    expect(parseBlOffset("\u{2212}0.3s")).toBe(-0.3);
+    expect(parseBlOffset("- 1.5\u{A0}s")).toBe(-1.5);
+    expect(parseBlOffset("+120ms")).toBe(0.12);
+    expect(parseBlOffset("-250 MS")).toBe(-0.25);
+    expect(parseBlOffset(".5s")).toBe(0.5);
+    expect(parseBlOffset("3.sec")).toBe(3);
+    expect(parseBlOffset("1.5 seconds")).toBe(1.5);
+  });
+
+  it("refuses anything else", () => {
+    for (const text of ["", " ", "s", "+", "auto", "0.2.3s", "1e3s", "+-1s", "0x10", "2/5", "1.5 min", "Infinity"]) {
+      expect(parseBlOffset(text), text).toBeNull();
+    }
   });
 });

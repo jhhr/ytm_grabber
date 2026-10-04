@@ -317,6 +317,8 @@ Edge cases to handle:
   - divider; **Raw response (.txt)**; **Re-capture** (forces the on-demand flow again).
 - Optional extra (cheap, useful for Tony): if BL's per-song offset (`.blyrics-dock__offset-value`, e.g. `+0.2s`) isn't zero, say so in a toast after download. Downloaded files never include BL's offset, so I know to apply it in Tony with Edit → Shift Lyrics….
 
+*(B7b, where this section is silent: the offset note comes only with files of the playing song's capture, since BL's offset belongs to the song it shows. Without the refresh button, always-capture mode still starts the capture and waits for the next lyrics BL loads. Clicks while a click's flow runs are ignored; a click on the button whose menu is open closes it. A `done` for another video asks again what is playing, in case the song changed during the capture.)*
+
 ### 3.6 Lyrics downloads (`background/downloads.ts`)
 
 - `chrome.downloads.download({ url: "data:<mime>;charset=utf-8," + encodeURIComponent(content), filename: [subfolder/]<stem><ext>, conflictAction: "uniquify", saveAs: false })` (service workers have no `URL.createObjectURL`; data URLs are fine at these sizes).
@@ -504,7 +506,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B5b** Capture manager, always-attached mode [Phase 3, rest] — Done 2026-10-04 (0eb449e)
 - **B6** Lyrics downloads (SW) + menu model (pure) [Phase 4, part] — Done 2026-10-04 (924b11c)
 - **B7a** Page bridge + now playing + lyrics button placement [Phase 4 / 6, part] — Done 2026-10-04 (026d0d1)
-- **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest]
+- **B7b** Lyrics menu popover + capture flow (content script) [Phase 4, rest] — Done 2026-10-04
 - **B8** End-to-end test in Chromium: mock YTM + BL dock + streaming SSE [replaces spike 1 as far as possible]
 - **B9** Native host + installer scripts + host tests [Phase 5]
 - **B10** Audio button + page bridge + SW audio relay [Phase 6]

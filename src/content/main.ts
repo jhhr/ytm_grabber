@@ -1,6 +1,8 @@
 // Content script entry (dist/content.js), isolated world on music.youtube.com.
+import { createSettingsStore } from "../shared/settings";
 import { mountLyricsButton } from "./lyricsButton";
-import { getNowPlaying, stemFor } from "./nowPlaying";
+import { createLyricsFlow } from "./lyricsFlow";
+import { createToaster } from "./toast";
 
 const LOG_PREFIX = "[YTM Practice Grabber]";
 /** Set on <html> by the first copy of this script in a page. */
@@ -13,13 +15,19 @@ if (html.hasAttribute(LOADED_ATTRIBUTE)) {
   console.log(`${LOG_PREFIX} content script already running in this page`);
 } else {
   html.setAttribute(LOADED_ATTRIBUTE, "");
-  mountLyricsButton({ onClick: () => void logClick() });
+  // chrome.* is reached through these wrappers at call time: after the extension is reloaded
+  // they throw "Extension context invalidated", which the flow turns into a message.
+  const lyrics = createLyricsFlow({
+    runtime: {
+      sendMessage: (message) => chrome.runtime.sendMessage(message),
+      connect: (connectInfo) => chrome.runtime.connect(connectInfo),
+      lastError: () => chrome.runtime.lastError?.message,
+    },
+    // Content scripts may read chrome.storage.local, where the options are kept.
+    settings: createSettingsStore(chrome.storage.local),
+    // One toaster for the page: every part that talks to the user should share it.
+    toaster: createToaster(),
+  });
+  mountLyricsButton({ onClick: (button) => lyrics.onClick(button) });
   console.log(`${LOG_PREFIX} content script loaded`);
-}
-
-// Until the lyrics menu (B7b): shows what the files would be named after.
-async function logClick(): Promise<void> {
-  const nowPlaying = await getNowPlaying();
-  const result = stemFor(nowPlaying);
-  console.log(`${LOG_PREFIX} lyrics button clicked; now playing (from the ${nowPlaying.from}):`, result.stem !== null ? result.stem : result.reason);
 }
