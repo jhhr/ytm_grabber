@@ -42,7 +42,7 @@ export const BUSY_CLASS = "pg-busy";
 
 export const FLOW_TEXT = {
   capturing: "Capturing\u{2026}",
-  noRefresh: "Turn on BL's refresh button in its dock settings, or enable Always-capture in this extension's options.",
+  noRefresh: "Turn on BL's refresh button in its dock settings, or choose \"Always attached\" under When to capture in this extension's options.",
   waitingForBl: "Waiting for Better Lyrics to load lyrics: its refresh button is off, so the capture takes the next lyrics it loads\u{2026}",
   reloaded: "The extension was reloaded: reload this tab",
   backgroundStopped: "The extension's background stopped; try again",

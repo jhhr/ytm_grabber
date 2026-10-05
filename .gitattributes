@@ -1,0 +1,6 @@
+# LF everywhere, also in Windows checkouts: tests compare fixtures and goldens byte for byte,
+# and the host's scripts do not need CRLF.
+* text=auto eol=lf
+# Fixtures are compared byte for byte: never convert them.
+test/fixtures/** -text
+*.png binary

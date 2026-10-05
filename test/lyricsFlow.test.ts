@@ -257,7 +257,9 @@ describe("a capture", () => {
     setup({ refresh: false });
     await click();
     expect(toastText()).toBe(FLOW_TEXT.noRefresh);
-    expect(toastText()).toBe("Turn on BL's refresh button in its dock settings, or enable Always-capture in this extension's options.");
+    expect(toastText()).toBe(
+      "Turn on BL's refresh button in its dock settings, or choose \"Always attached\" under When to capture in this extension's options.",
+    );
     expect(runtime.connect).not.toHaveBeenCalled();
     expect(isBusy()).toBe(false);
   });

@@ -57,7 +57,9 @@ LINE_LIMIT = 500  # characters kept of a progress line
 TAIL_LINES = 20  # stderr lines kept for error.stderrTail
 TAIL_LINE_LIMIT = 1000  # characters kept of each of them
 REQUEST_ID_LIMIT = 200
-VERSION_TIMEOUT = 10.0  # seconds for `yt-dlp --version`
+# Seconds for `yt-dlp --version`. yt-dlp.exe is usually a one-file build that unpacks itself on
+# every start, so a cold start with an antivirus scan can take well over 10 s.
+VERSION_TIMEOUT = 30.0
 KILL_GRACE = 1.0  # seconds between SIGTERM and SIGKILL (not Windows: taskkill /F is final)
 READER_GRACE = 5.0  # seconds to drain a finished yt-dlp's pipes (a grandchild may hold them)
 SHUTDOWN_WAIT = 5.0  # seconds to wait for cancelled downloads when Chrome closes the port

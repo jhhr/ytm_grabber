@@ -16,7 +16,8 @@ import { isAbsoluteFolderPath } from "../shared/downloadDir";
 import type { AudioPingRequest, HostPong } from "../shared/messages";
 import type { CaptureMode, Settings, SettingsStore } from "../shared/settings";
 
-export const PING_TIMEOUT_MS = 15_000;
+/** Longer than the host's 30 s for `yt-dlp --version`, so the host's own message arrives first. */
+export const PING_TIMEOUT_MS = 45_000;
 /** How long "Saved" shows next to a control. */
 export const SAVED_NOTE_MS = 2_000;
 

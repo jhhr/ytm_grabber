@@ -46,13 +46,9 @@ done in your own browser are in [docs/spike-notes.md](docs/spike-notes.md).
 In a terminal, in the folder where you keep projects:
 
 ```
-git clone --config core.autocrlf=false https://github.com/jhhr/ytm_grabber.git
+git clone https://github.com/jhhr/ytm_grabber.git
 cd ytm_grabber
 ```
-
-`--config core.autocrlf=false` keeps the files' line endings as they are in the repository. Git
-for Windows otherwise usually converts them to CRLF, which does not matter for the extension or
-the host, but makes the tests that compare files byte for byte fail.
 
 Keep this folder where it is: the native host runs from `native-host\` inside it.
 
@@ -362,8 +358,8 @@ works, **Raw response (.txt)** always saves BL's whole response, whatever the me
   button with it (no floating button either, since the dock exists). Turn at least one dock
   control back on, preferably the refresh button.
 - **BL's refresh button is turned off**: in on demand mode a click says "Turn on BL's refresh
-  button in its dock settings, or enable Always-capture in this extension's options." (the
-  option is called **Always attached**). In always attached mode the click says "Waiting for
+  button in its dock settings, or choose "Always attached" under When to capture in this
+  extension's options." In always attached mode the click says "Waiting for
   Better Lyrics to load lyrics: its refresh button is off, so the capture takes the next lyrics
   it loads…", and ends with "No lyrics stream from Better Lyrics within 30 s" if BL loads
   nothing (for a song in its cache it does not).

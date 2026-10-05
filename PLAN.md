@@ -363,7 +363,7 @@ Edge cases to handle:
 - A `MutationObserver` (debounced; *B7a: coalesced instead, at most one check per 100 ms, so a steady stream of BL's changes cannot postpone it*) watches for `.blyrics-dock__inner`; insert one `<button class="pg-dock-btn">` with a download icon into `__inner` (after `__controls`). Re-insert if BL removes it. Style it to sit visually with BL's controls (size/radius/colour via BL's CSS where it inherits; own class names only — don't reuse BL classes, so BL's own `querySelector`s never pick up our element).
 - **Fallback** when no dock exists ~3 s after `#side-panel` has BL lyrics: a small floating button in the top-right of `#side-panel`. *(B7a, from BL 3.0.0.4: `#blyrics-wrapper` is appended to `#tab-renderer` once and emptied between songs, so "lyrics up" means a `.blyrics-container` in `#side-panel`. For a song without lyrics BL renders its "not found" line into that container and unmounts the dock, so the floating button shows then too.)*
 - Click:
-  1. `capture:get` for the current videoId. If missing → show "Capturing…" state, run the on-demand flow (§3.3). If `.blyrics-dock__refresh` is missing, show: *"Turn on BL's refresh button in its dock settings, or enable Always-capture in this extension's options."*
+  1. `capture:get` for the current videoId. If missing → show "Capturing…" state, run the on-demand flow (§3.3). If `.blyrics-dock__refresh` is missing, show: *"Turn on BL's refresh button in its dock settings, or choose "Always attached" under When to capture in this extension's options."*
   2. Open a popover appended to `document.body`, positioned next to the button (flip up/down like BL's menu does based on `data-position`). Esc / outside-click closes it.
 - Menu items:
   - **Download TTML for Tony** (top, bold) — the pick from §3.2.3, labelled with its source and timing, e.g. *"Better Lyrics — word timing"* or *"Musixmatch — word timing, converted"*. Saved as `<stem>.ttml` (no provider infix, so it's the obvious file to import); `<stem>.lrc` when only LRC exists.
@@ -476,7 +476,7 @@ subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, text=True, encoding="utf-8",
 - Native host status: **Test connection** (`ping` → shows host version, yt-dlp version, ffmpeg found)
 - (Phase 8) Auto-download the Tony TTML after capture *(not built, §8)*
 
-*(B11: `static/options.html` + `options.css` (light and dark) and `src/options/optionsPage.ts`; also the debug capture logging switch and the extension's ID (for `install.ps1 -ExtensionId`). Each change is saved at once, one setting per write; the override is saved trimmed when the field is committed, "" for none, with a warning (not a refusal) when it is not a full Windows/POSIX folder path, since the host would then use its fallbackOutputDir. Test connection lists the host's `problems` and gives up after 15 s on the page's side.)*
+*(B11: `static/options.html` + `options.css` (light and dark) and `src/options/optionsPage.ts`; also the debug capture logging switch and the extension's ID (for `install.ps1 -ExtensionId`). Each change is saved at once, one setting per write; the override is saved trimmed when the field is committed, "" for none, with a warning (not a refusal) when it is not a full Windows/POSIX folder path, since the host would then use its fallbackOutputDir. Test connection lists the host's `problems` and gives up after 45 s on the page's side (lead, after B12: the host now allows `yt-dlp --version` 30 s).)*
 
 ---
 
@@ -593,7 +593,7 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 
 ## 8. Known limitations and open points
 
-Gathered from the build log (`docs/WORK_ORDERS.md` §5) at the end of B12. Each says what happens and the cheapest fix; none blocks normal use. The 👤 checks in `docs/spike-notes.md` settle the ones marked "unverified".
+Gathered from the build log (`docs/WORK_ORDERS.md` §5) at the end of B12. Each says what happens and the cheapest fix; none blocks normal use. The 👤 checks in `docs/spike-notes.md` settle the ones marked "unverified". *(Fixed by the lead after B12, so no longer listed: a `.gitattributes` keeps LF in Windows checkouts; the no-refresh message names the "Always attached" option; the host allows `yt-dlp --version` 30 s (cold one-file starts under antivirus) and the options page waits 45 s.)*
 
 ### 8.1 Capture
 
@@ -615,7 +615,6 @@ Gathered from the build log (`docs/WORK_ORDERS.md` §5) at the end of B12. Each 
 | **Stale Tony label in a rare case** (B6): the menu's "Download TTML for Tony" label comes from the capture summary, whose pick ran with a placeholder title; the download makes the pick again with the real one. Only when the real title alone pushes a converted file over Tony's 1 MiB does the download fall to the next candidate. A pick that skipped candidates shows no warning either. | The menu names one source and saves another (still as `<stem>.ttml`). | Send the stem with `capture:get` / `start` so the summary's pick uses the real title; or name the saved source in the "Saved" message. |
 | **The menu is not moved on window resize or scroll.** | After a resize the open menu can sit away from its button or partly outside the window; reopening fixes it. | Close the menu on `resize` and `scroll` in `menu.ts`. |
 | **Extension reloaded during a capture**: the tab says "The extension's background stopped; try again"; only the next click says "The extension was reloaded: reload this tab" (Chromium 141: the port closes while the old context still looks alive). | One confusing message after reloading the extension mid-capture. | Reword `FLOW_TEXT.backgroundStopped` to mention reloading the tab. |
-| **Wording**: the no-refresh-button message says "enable Always-capture in this extension's options", but the option is labelled "Always attached". | A small mismatch for the reader. | Change `FLOW_TEXT.noRefresh` in `lyricsFlow.ts`. |
 | **Lyrics always go to Chrome's download folder** (`chrome.downloads` can write nowhere else); the folder override applies to audio only. | With an override, lyrics and audio land in different folders. | None in an extension; the options page says so. |
 
 ### 8.3 Audio and the native host
@@ -638,7 +637,6 @@ Gathered from the build log (`docs/WORK_ORDERS.md` §5) at the end of B12. Each 
 | Point | Consequence | Cheapest fix |
 |---|---|---|
 | **Long paths**: a stem is up to 150 characters and appears twice with the per-song folder (`<folder>\<stem>\<stem>.musixmatch-word.ttml`). | Past Windows' 260-character limit Chrome or yt-dlp may fail to save; typical stems are far shorter. | Keep the download folder short (README); or cap the folder name shorter than the file stem. |
-| **No `.gitattributes`**: Git for Windows usually checks text files out with CRLF line endings. | The extension and host work, but unit tests comparing fixtures byte for byte fail on such a clone. The README clones with `core.autocrlf=false`. | Add `.gitattributes` with `* text=auto eol=lf` (or `-text` for `test/fixtures/**`). |
 | **The end-to-end tests run on Linux only** (`openssl`, `/bin/sh`, `python3`, Playwright's Chromium), and the host tests that run the fake yt-dlp skip on Windows. | The user's machine runs the unit tests only. | — |
 | **`fixtures/local/` is empty**: the two tests that check the Musixmatch and QQ converters against real captures skip, so the converters were checked on invented data and against BL's own parsers only. | Real-data surprises show up first in Tony (👤 check 7). | Put raw streams (the "Raw response (.txt)" files) in `fixtures/local/` and run `npm test`. |
 | **`--silent-debugger-extension-api`** hides Chrome's debugging bar for every extension, not just this one. | The bar no longer warns about any extension using the debugger. | A documented trade-off (README step 6); on demand mode keeps the bar to a few seconds without it. |
