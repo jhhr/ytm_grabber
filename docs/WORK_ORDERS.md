@@ -109,7 +109,7 @@ your work in the tree and list every file you created or changed in your report.
 - Choices made, deviations, anything fragile or unfinished. Say it plainly: a problem
   reported is cheap, one found later is not.
 
-## 3. State of the code (kept by the lead; as of 2026-10-04, after B11)
+## 3. State of the code (kept by the lead; as of 2026-10-05, after B12 - all phases done)
 
 - Tooling: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5. `tsconfig.json` covers
   `src/` (`types: ["chrome"]`, no node); `test/tsconfig.json` extends it with node types +
@@ -835,3 +835,10 @@ The next phase must know:
   verbatim: change one, change the README too. Spike-notes check numbers are referenced from PLAN §4 and §8.
 Left open: everything in PLAN §8. Noticed while documenting (not changed): no `.gitattributes`; the no-refresh toast says
 "Always-capture" where the option is "Always attached"; Test connection shows ffmpeg found/not found, not its version.
+
+### Lead after B12 — 2026-10-05 — 19d5d06, 130be1a
+Committed the docs. Fixed three things B12 found: `.gitattributes` (LF in Windows
+checkouts; byte-exact fixture tests), the no-refresh message now names "Always attached",
+host `yt-dlp --version` timeout 30 s and options-page ping timeout 45 s. Final runs:
+typecheck, 692 unit, 59 Python, 21 e2e, build - all green. All phases done; what remains
+is the user's checklist in `docs/spike-notes.md`.
