@@ -240,7 +240,7 @@ your work in the tree and list every file you created or changed in your report.
 
 ## 4. Phases
 
-Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b, B8, B9, B10, B11. (B5 and B7 were split in two after B1/B2 ran large.)
+Done: B1, B2, B3, B4, B5a, B5b, B6, B7a, B7b, B8, B9, B10, B11, B12. (B5 and B7 were split in two after B1/B2 ran large.)
 
 ### B1 — Scaffold + filenames (spec §2 repo layout, §3.1, §3.2 `buildStem` bullet, §4 Phase 1)
 
@@ -816,3 +816,22 @@ entry until that process saves again. install.ps1/uninstall.ps1 still never ran 
 Changed the host's `_quote()` to keep non-ASCII letters in error sentences (was
 JSON-escaped; the user's titles are often Finnish); test added. All suites green: 692
 unit, 59 Python, 21 e2e. B10 used ~326k tokens, B11 ~353k.
+
+### B12 — 2026-10-04
+Built (docs only, no code): `README.md` (what it does, requirements, numbered Windows install incl. install.ps1 / config.json /
+Test connection / the debugger flag, usage item by item, file names, options, troubleshooting with the UI's exact texts,
+development); `docs/spike-notes.md` (15 numbered 👤 checks, cheapest and most decisive first, each How / Expect / Report, plus
+what B8/B9/B11 already verified); `PLAN.md` (status line, §2 tree = `git ls-files`, corrections in place as italic phase notes,
+§4 annotated with what was done and the 👤 check that remains, §7.1 QRC row corrected, §7.2 B12 done, new §8 with every open
+item, its consequence and the cheapest fix).
+Choices / deviations:
+- Every message, label and file name was copied from the code; counts for the Tony check (22 words / 5 lines, 25 / 5) come from
+  running `readTony` on the goldens; Tony's menu names and status-bar sentence from `$REF/tony` (behaviour only).
+- README clones with `--config core.autocrlf=false`: there is no `.gitattributes`, and CRLF checkouts break the byte-exact tests.
+- Claims I could not check here are framed as 👤 checks, not stated as fact: `--silent-debugger-extension-api` in the user's
+  Chrome, "Ask where to save each file" prompting for extension downloads, yt-dlp on an already-downloaded file.
+The next phase must know:
+- The README's troubleshooting quotes `FLOW_TEXT`, `AUDIO_TEXT`, `OPTIONS_TEXT`, the capture reasons and the host's sentences
+  verbatim: change one, change the README too. Spike-notes check numbers are referenced from PLAN §4 and §8.
+Left open: everything in PLAN §8. Noticed while documenting (not changed): no `.gitattributes`; the no-refresh toast says
+"Always-capture" where the option is "Always attached"; Test connection shows ffmpeg found/not found, not its version.

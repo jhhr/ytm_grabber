@@ -9,6 +9,8 @@ Today I do step 2 by hand: open DevTools → Network, find BL's `lyrics` request
 
 **Environment:** Windows x64, Google Chrome, Better Lyrics **v3.0.0.4** (all BL references below were checked against that version's source at github.com/better-lyrics/better-lyrics). Python 3 is available (conda). `yt-dlp` and `ffmpeg` are installed or installable.
 
+**Status (2026-10-04):** everything in §3 is built and tested (build phases B1–B12, §7.2): unit tests, the native host's tests, and an end-to-end test in Chromium 141 against a mock YouTube Music page, BL dock and lyrics servers. Install and use: `README.md`. What remains is the 👤 checklist in `docs/spike-notes.md` (the real pages, Chrome on Windows, PowerShell, Tony) and the known limitations in §8. Notes in *italics* with a build phase (B1…B12) record where the build added to or corrected this plan.
+
 ---
 
 ## 1. What we learned from the Better Lyrics source (read this first)
@@ -124,63 +126,105 @@ The target style for converted files is exactly what Tony's own `writeTtml()` wr
 music.youtube.com tab
  ├─ content/page-bridge.ts   (MAIN world)    answers "what's playing?" from #movie_player
  ├─ content/main.ts          (ISOLATED)      player-bar audio button + BL-dock lyrics button/menu
- │        │  chrome.runtime messages / port
+ │        │  chrome.runtime messages (capture:get, lyrics:download, audio:ping, audio:reveal)
+ │        │  and ports ("capture", "audio")
  ▼        ▼
-background/sw.ts (service worker)
- ├─ capture.ts    chrome.debugger → Network domain → raw SSE + Unison JSON
+background/sw.ts (service worker; requests.ts answers the messages)
+ ├─ capture.ts    chrome.debugger → Network domain → raw SSE + Unison JSON (networkWatcher.ts)
  ├─ store.ts      chrome.storage.session cache of captures (LRU)
  ├─ downloads.ts  chrome.downloads (lyrics files), learns the download folder path
  └─ audio.ts      chrome.runtime.connectNative("com.jormki.ytm_grabber") ──┐
                                                                           ▼
 native-host/ytm_grabber_host.py  (Python 3, stdlib only, launched by Chrome via host.bat)
  └─ runs yt-dlp.exe, streams progress back, returns the final file path
+
+options page (options.html, options/optionsPage.ts): the settings in chrome.storage.local
+(shared/settings.ts, read by the worker and the content script), and Test connection (audio:ping)
 ```
 
 ### Repo layout
 
+*(B12: brought up to date with the repository as built.)*
+
 ```
-ytm-practice-grabber/
+ytm_grabber/
   PLAN.md                     (this file)
-  README.md                   install + usage (Windows)
-  package.json                scripts: build, watch, test, typecheck, gen-key
-  tsconfig.json
+  README.md                   install + usage (Windows), troubleshooting, development
+  LICENSE                     GPL-3.0
+  package.json                scripts: build, watch, test, test:e2e, typecheck, gen-key; Node >= 22.12
+  package-lock.json
+  tsconfig.json               src/ only (types: chrome)
+  vitest.config.ts            unit tests (test/**/*.test.ts)
+  vitest.e2e.config.ts        end-to-end tests (test-e2e/**/*.e2e.test.ts)
   build.mjs                   esbuild: bundles each entry to dist/, copies static files
+  .gitignore                  node_modules, dist, keys, fixtures/local/*, the host's generated files
   static/
-    manifest.json
-    icons/
-    options.html
+    manifest.json             with the "key" that fixes the extension ID
+    icons/                    icon-16/32/48/128.png (made by scripts/make-icons.mjs)
+    options.html  options.css
   src/
-    shared/
-      messages.ts             typed message protocol (content ⇄ SW ⇄ host)
-      sse.ts                  parseSse()                         (pure, unit-tested)
-      sources.ts              extractSources(), provider table   (pure, unit-tested)
-      filenames.ts            buildStem(), sanitizeFilename()    (pure, unit-tested)
-      ttml.ts                 writeTonyTtml() — Tony's writeTtml() style (pure, unit-tested)
-      convert/musixmatchWord.ts   Musixmatch word-by-word → lines of timed words
-      convert/qrc.ts              QQ QRC → lines of timed words
-      tonyPick.ts             picks the best source for Tony (§3.2.3)
-      blyrics.ts              BL selectors + displayName→provider map, with BL version note
+    shared/                   pure: no chrome.*, no DOM
+      messages.ts             typed protocol: content ⇄ SW requests, capture and audio ports, host messages
+      bridgeProtocol.ts       page bridge ⇄ content script events (JSON strings)
+      sse.ts                  parseSse()
+      sources.ts              extractSources(), provider table (§1.5)
+      filenames.ts            buildStem(), sanitizeFilename(), isVideoId()
+      ttml.ts                 writeTonyTtml(): Tony's writeTtml() style
+      convert/musixmatchWord.ts   enhanced LRC (Musixmatch word-by-word, Unison richsync) → timed lines
+      convert/qrc.ts              QQ QRC → timed lines
+      tonyPick.ts             tonyReady(), pickForTony() (§3.2.3)
+      blyrics.ts              BL selectors, displayName → sources map, BL_VERIFIED_VERSION, parseBlOffset()
+      blRequests.ts           which CDP requests are BL's stream / Unison; videoId from the body; body choice
+      summary.ts              StoredCapture, the capture summary the content script gets
+      lyricsItems.ts          lyrics menu item ids
+      lyricsFiles.ts          the file behind a menu item; stem checks; data URLs
+      menuModel.ts            the lyrics menu as data
+      downloadDir.ts          learning the download folder from a download's path
+      settings.ts             the options in chrome.storage.local
+      storageArea.ts          storage area seams, quota errors
     background/
-      sw.ts  capture.ts  store.ts  downloads.ts  audio.ts
+      sw.ts                   entry: wires every listener at top level
+      requests.ts             capture:get, lyrics:download, audio:ping, audio:reveal
+      capture.ts              capture manager (on demand, always attached)
+      networkWatcher.ts       one debugger session's Network events → a captured stream
+      store.ts                capture store over chrome.storage.session
+      downloads.ts            lyrics downloads, learned download folder
+      audio.ts                native messaging relay
     content/
-      main.ts  page-bridge.ts  audioButton.ts  lyricsButton.ts  menu.ts  styles.css
+      main.ts                 entry (isolated world)
+      page-bridge.ts          entry (MAIN world)
+      nowPlaying.ts           what is playing; the file stem
+      lyricsButton.ts  lyricsFlow.ts  menu.ts      the lyrics button, its click flow, the menu popover
+      audioButton.ts  confirmPopover.ts            the audio button and its popovers
+      toast.ts  styles.css
     options/
-      options.ts
+      options.ts              entry
+      optionsPage.ts          the options page
   native-host/
     ytm_grabber_host.py
     config.example.json
     install.ps1  uninstall.ps1  (generate host.bat + host manifest, register in HKCU)
+    test_host.py              the host's tests (python -m unittest)
+    testing/fake_yt_dlp.py    fake yt-dlp for the host's and the end-to-end tests
+    (generated, gitignored: config.json, host.bat, com.jormki.ytm_grabber.json, saved-folders.json)
   scripts/
     gen-key.mjs               creates the manifest "key" and prints the extension ID
-  test/
-    sse.test.ts  sources.test.ts  filenames.test.ts
-    ttml.test.ts  musixmatchWord.test.ts  qrc.test.ts  tonyPick.test.ts
-    fixtures/synthetic-stream.txt        committed; invented lyrics only
-  fixtures/local/                        gitignored; real captures for local tests
-  docs/spike-notes.md
+    make-icons.mjs            draws the icons
+  test/                       unit tests, mostly <module>.test.ts per module (37 files); tsconfig.json
+    helpers/                  blPage, captureHarness, captureSummary, fakeDebugger, fakeDownloads,
+                              fakeNative, fakePort, fakeStorage, tonyReader (Tony's rules, an oracle)
+    fixtures/synthetic-stream.txt  synthetic-unison.json   a whole BL stream and Unison body; invented lyrics only
+    fixtures/sanitize-vectors.json   the file-name rules' contract, shared with the Python host
+    fixtures/golden/          writer-basic.ttml, musixmatch-word.ttml, qq.ttml
+  test-e2e/                   Chromium end-to-end: lyrics.e2e.test.ts, audio.e2e.test.ts, browser.ts,
+                              harness.ts, server.ts, certs.ts, secrets.ts, nativeHost.ts, page/
+  fixtures/local/             gitignored except its README; real captures for local tests
+  docs/
+    WORK_ORDERS.md            the build phases' rules and log
+    spike-notes.md            the 👤 checklist
 ```
 
-**Tooling:** TypeScript + esbuild (content scripts must be single classic scripts, so bundle), `@types/chrome`, Vitest. No UI framework — the UI is two buttons and a popover. Load `dist/` as an unpacked extension.
+**Tooling:** TypeScript + esbuild (content scripts must be single classic scripts, so bundle), `@types/chrome`, Vitest. No UI framework — the UI is two buttons and a popover. Load `dist/` as an unpacked extension. *(As built: TypeScript 7 (native `tsc`), esbuild 0.28, Vitest 5, jsdom for DOM tests, `@braccato/parsers` 0.3.2 (BL's own parsers, to compare against), `playwright-core` 1.56.1 for the end-to-end test; all dev dependencies, none at run time.)*
 
 **Fixtures:** committed fixtures must contain **invented** lyrics only (real lyrics are copyrighted and the repo may be public). Put real captures — such as my Hot Stuff capture — in `fixtures/local/` (gitignored); tests that use them `skip` when the folder is empty.
 
@@ -207,10 +251,12 @@ ytm-practice-grabber/
 }
 ```
 
+*(B1: built as above, plus `icons`. The key fixes the extension ID at **`mengelecikhhdpjdebjpokcmhdkhjobj`**; the private key stays in the gitignored `keys/` and is needed only to pack a `.crx`.)*
+
 ### 3.2 Pure modules (`src/shared/`)
 
 - **`parseSse(text): { event: string; data: unknown }[]`** — mirror BL's parser exactly: split on `/\n\n|\r\n\r\n/`, per block take the last `event:` value and concatenate `data:` values (trimmed); skip empty data and `[DONE]`; `JSON.parse` failures are kept as `{ event, data: null, error, rawData }` rather than thrown.
-- **`extractSources(events, unison?): LyricsSource[]`**
+- **`extractSources(events, unisonRaw?): { metadata, sources: LyricsSource[] }`** *(B2: `unisonRaw` is the Unison response's text)*
 
   ```ts
   type Timing = "word" | "syllable" | "line" | "plain" | "unknown";
@@ -220,16 +266,17 @@ ytm-practice-grabber/
     blDisplayName?: string;  // matches .blyrics-dock__source-name
     label: string;           // menu text, e.g. "Better Lyrics — TTML, word-synced"
     timing: Timing;
+    format: "ttml" | "lrc" | "enhanced-lrc" | "qrc" | "plain" | "json";  // B2: what converters and the Tony pick dispatch on
     ext: string;             // ".golyrics.ttml"
     mime: string;            // "application/ttml+xml", "text/plain"
     content: string;
   }
   ```
-  Implements the table in §1.5. Empty strings / missing fields produce no entry. Also returns `metadata` (`song`, `artist`, `album`, `duration`, `videoId`) from the `metadata` event.
+  Implements the table in §1.5. Empty strings / missing fields produce no entry. Also returns `metadata` (`song`, `artist`, `album`, `duration`, `videoId`) from the `metadata` event. *(B2: a golyrics/binimum payload with no `<tt>`, or a qq/kugou payload whose nested JSON does not decode, becomes a `.<provider>.json` source rather than a `.ttml` that is not TTML; an unknown provider's id is sanitised for file names.)*
 - **`buildStem({ artist, title, videoId })`** → `"Artist - Title [videoId]"`; **`sanitizeFilename()`** for Windows: replace `<>:"/\|?*` and control chars, collapse whitespace, trim trailing dots/spaces, avoid reserved names (`CON`, `NUL`, `COM1`…), cap at ~150 chars. *(B1: `chrome.downloads` is stricter than Windows: it also rejects format characters such as ZWJ, LRM or soft hyphen, C1 controls, noncharacters, whitespace/`.`/`~` at either end, `CLOCK$`, `desktop.ini` and `thumbs.db` (checked in Chromium 141), so the rules cover both. The exact rules, and the 150 UTF-16-unit cap that cuts the artist/title part and never `[videoId]`, are in `test/fixtures/sanitize-vectors.json`.)* The audio file and all lyrics files use the **same stem**, so they sort together:
   `Artist - Title [id].opus`, `Artist - Title [id].ttml` (the Tony pick), `Artist - Title [id].musixmatch.lrc`, …
 - **`blyrics.ts`** — every BL selector and the `displayName → source id(s)` map live here, with a comment `// verified against Better Lyrics 3.0.0.4`. Musixmatch maps to `musixmatch-word` first, then `musixmatch`; LRCLib to `lrclib`, then `lrclib-plain`.
-- **`writeTonyTtml({ title, lines })`** where `lines: { words: { pieces: { text, begin, end }[] }[] }[]` (seconds, absolute) → the TTML in §1.6: times `m:ss.mmm` rounded to the millisecond; pieces of one word written as adjacent `<span>`s with no whitespace; words separated by one space; `<p>` begin/end = first piece begin / last piece end; `itunes:key="L<n>"`; `<body dur>` and `<div>` end = last end; text XML-escaped; never a DOCTYPE. Test: output for a small synthetic input matches a golden file byte for byte.
+- **`writeTonyTtml({ title, lines })`** where `lines: { words: { pieces: { text, begin, end }[] }[] }[]` (seconds, absolute) → the TTML in §1.6: times `m:ss.mmm` rounded to the millisecond; pieces of one word written as adjacent `<span>`s with no whitespace; words separated by one space; `<p>` begin/end = first piece begin / last piece end; `itunes:key="L<n>"`; `<body dur>` and `<div>` end = last end; text XML-escaped; never a DOCTYPE. Test: output for a small synthetic input matches a golden file byte for byte. *(B3: each piece's text is cleaned (characters XML 1.0 forbids dropped, tabs and line breaks to spaces, trimmed) and pieces, words and lines left empty are dropped; with no lines at all it writes an empty `<div>`, which Tony refuses, so callers check for lines first.)*
 
 #### 3.2.1 Musixmatch word-by-word → TTML (`convert/musixmatchWord.ts`)
 
@@ -269,9 +316,13 @@ Best first; the first one that exists wins:
 
 Returns `{ source, filename, content, timing, converted: boolean }` so the menu can say e.g. *"Musixmatch, word timing (converted to TTML)"*. Before saving, check what Tony would refuse: size ≤ 1 MB and no `<!DOCTYPE`.
 
+*(B4, as built: `tonyReady(source, ctx)` makes one source Tony-ready (`{ ok: true, content, ext, filename, timing, converted, label }` or `{ ok: false, reason }`), and `pickForTony(sources, ctx)` returns `{ pick, skipped }`: the first ready candidate in the order above (with `source`), and the candidates tried before it that were not ready, with reasons. `ctx = { stem, title: "Artist - Title", metadata }`. Labels read e.g. "Musixmatch — word timing, converted". Size is counted in UTF-8 bytes (exactly 1 MiB passes); a DOCTYPE is refused in any case, anywhere, LRC too. Where this order is silent, see the "Tony pick gaps" row in §7.1.)*
+
 ### 3.3 Capture manager (`background/capture.ts`)
 
 Two modes (option, default **on-demand**):
+
+*(B5a/B5b: the capture runs over a `chrome.runtime.connect` port named `capture`, not one-shot messages: the content script posts `start { videoId }`; the worker posts `ready`, then `done { summary }` or `error { reason }`. `ready` can come at once (a capture already running is joined; always mode); `reason` is a sentence for the user; `summary.videoId` may differ from the one asked for. The summary never holds lyrics contents.)*
 
 **On-demand** (triggered from the lyrics button when no capture exists for the current video):
 1. Content script sends `capture:start { videoId }`.
@@ -297,7 +348,9 @@ Edge cases to handle:
 
 *(B8, Chromium 141 end to end, answering Phase 0's question: BL reads the stream with `response.body.getReader()`, and for such a fetch Chrome ends the request with `Network.loadingFailed { canceled: true, errorText: "net::ERR_ABORTED" }` when the body is complete, never `loadingFinished`; `Network.getResponseBody` then answers "No data found for resource with given identifier", so path (a) never delivers. Path (b) does: `Network.streamResourceContent` at `responseReceived` plus every `dataReceived` `data` is the stream byte for byte. No `eventSourceMessageReceived` comes (fetch, not EventSource). Real captures therefore have `bodySource: "stream"`, through the "cancelled after its `done` event" rule above: the stream's `event: done` is what marks it complete. Read with `.text()`, the same fetch ends with `loadingFinished` and `getResponseBody` works.)*
 
-**Infobar:** Chrome shows "*YTM Practice Grabber* started debugging this browser" while attached. On-demand mode keeps that to a few seconds. It can be suppressed entirely by starting Chrome with `--silent-debugger-extension-api` (add to the Chrome shortcut's target on Windows) — document this in the README.
+**Infobar:** Chrome shows "*YTM Practice Grabber* started debugging this browser" while attached. On-demand mode keeps that to a few seconds. It can be suppressed entirely by starting Chrome with `--silent-debugger-extension-api` (add to the Chrome shortcut's target on Windows) — document this in the README. *(B12: README step 6, with the trade-off: the flag silences the bar for every extension. Whether the user's Chrome still honours it is 👤 check 14.)*
+
+*(B5b/B8, debugging aids: with the `debugCapture` option on, the worker's console gets each step (`[YTM Practice Grabber] capture: tab <n>: …`, ending `using <bodySource>`), never request or response text; `captureNow(tabId, videoId?)` on the worker's global object starts a capture from its console.)*
 
 ### 3.4 Capture store (`background/store.ts`)
 
@@ -307,7 +360,7 @@ Edge cases to handle:
 
 ### 3.5 Lyrics button + menu (`content/lyricsButton.ts`, `content/menu.ts`)
 
-- A `MutationObserver` (debounced) watches for `.blyrics-dock__inner`; insert one `<button class="pg-dock-btn">` with a download icon into `__inner` (after `__controls`). Re-insert if BL removes it. Style it to sit visually with BL's controls (size/radius/colour via BL's CSS where it inherits; own class names only — don't reuse BL classes, so BL's own `querySelector`s never pick up our element).
+- A `MutationObserver` (debounced; *B7a: coalesced instead, at most one check per 100 ms, so a steady stream of BL's changes cannot postpone it*) watches for `.blyrics-dock__inner`; insert one `<button class="pg-dock-btn">` with a download icon into `__inner` (after `__controls`). Re-insert if BL removes it. Style it to sit visually with BL's controls (size/radius/colour via BL's CSS where it inherits; own class names only — don't reuse BL classes, so BL's own `querySelector`s never pick up our element).
 - **Fallback** when no dock exists ~3 s after `#side-panel` has BL lyrics: a small floating button in the top-right of `#side-panel`. *(B7a, from BL 3.0.0.4: `#blyrics-wrapper` is appended to `#tab-renderer` once and emptied between songs, so "lyrics up" means a `.blyrics-container` in `#side-panel`. For a song without lyrics BL renders its "not found" line into that container and unmounts the dock, so the floating button shows then too.)*
 - Click:
   1. `capture:get` for the current videoId. If missing → show "Capturing…" state, run the on-demand flow (§3.3). If `.blyrics-dock__refresh` is missing, show: *"Turn on BL's refresh button in its dock settings, or enable Always-capture in this extension's options."*
@@ -315,7 +368,7 @@ Edge cases to handle:
 - Menu items:
   - **Download TTML for Tony** (top, bold) — the pick from §3.2.3, labelled with its source and timing, e.g. *"Better Lyrics — word timing"* or *"Musixmatch — word timing, converted"*. Saved as `<stem>.ttml` (no provider infix, so it's the obvious file to import); `<stem>.lrc` when only LRC exists.
   - **Download what's showing** — the source BL currently displays (from `.blyrics-dock__source-name` via `blyrics.ts`), Tony-ready if it can be (as-is TTML, converted TTML, or LRC); disabled with a reason for YouTube / not-captured sources.
-  - divider; **Other sources** — one item per captured source in its native format (§1.5), with timing, the one BL is showing marked "(showing)". Musixmatch word-by-word and QQ also get a "→ TTML" item.
+  - divider; **Other sources** — one item per captured source in its native format (§1.5), with timing, the one BL is showing marked "(showing)". Musixmatch word-by-word and QQ also get a "→ TTML" item. *(B6: so does Unison richsync LRC, which the same converter handles. Every disabled item carries its reason, shown under it. When the capture is not of the playing video, a disabled "Captured for another song" note comes first and "what's showing" is disabled.)*
   - divider; **Raw response (.txt)**; **Re-capture** (forces the on-demand flow again).
 - Optional extra (cheap, useful for Tony): if BL's per-song offset (`.blyrics-dock__offset-value`, e.g. `+0.2s`) isn't zero, say so in a toast after download. Downloaded files never include BL's offset, so I know to apply it in Tony with Edit → Shift Lyrics….
 
@@ -337,7 +390,7 @@ Edge cases to handle:
 
 - **page-bridge (MAIN world):** listens for `pg:what-is-playing` on `document`, replies with a `pg:now-playing` CustomEvent whose `detail` is a JSON **string** (cross-world safe):
   `{ videoId, title, author, musicVideoType }` from `document.querySelector("#movie_player")?.getVideoData()` and `getPlayerResponse()?.videoDetails?.musicVideoType`. Fallback in the isolated world: `new URL(location.href).searchParams.get("v")` + player bar title/byline text.
-- **Button** in `ytmusic-player-bar .right-controls-buttons` (verify in spike; BL restyles the player bar, so observe and re-insert). States: idle → running (percentage in tooltip/badge) → done (✓, tooltip shows file path) → error (tooltip shows reason).
+- **Button** in `ytmusic-player-bar .right-controls-buttons` (verify in spike; BL restyles the player bar, so observe and re-insert). *(B10: appended at the end of those controls; the selector and the player bar's title/byline selectors (`PLAYER_BAR_SELECTORS`, the fallback when the page bridge does not answer) are 👤 check 2.)* States: idle → running (percentage in tooltip/badge) → done (✓, tooltip shows file path) → error (tooltip shows reason).
 - **Song vs. video warning:** if `musicVideoType` is `MUSIC_VIDEO_TYPE_OMV` (official music video) rather than `MUSIC_VIDEO_TYPE_ATV` (the album track), show a warning before downloading — a music video's audio often has an intro/outro, so the track-synced lyrics won't line up. Offer "Download anyway".
 - Click → `audio:download { videoId, stem }` to the SW. The SW resolves `outputDir` (learned download dir → option override → host's fallback) and talks to the native host over a `chrome.runtime.connectNative` **port**, relaying progress to the tab.
 
@@ -368,20 +421,22 @@ Edge cases to handle:
   4. if `config.json` is missing, copy the example and try to fill `ytDlpPath`/`ffmpegLocation` via `where.exe`.
 - `uninstall.ps1` removes the registry key and generated files.
 
+*(B9, as built: `install.ps1 [-ExtensionId <id>] [-Python <python.exe>]`, run as `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`; `-ExtensionId` defaults to the fixed ID (§3.1). Python 3.8 or newer: `py -3`, then `python.exe` on PATH found with `Get-Command` (not `where.exe`, whose output passes through the console code page; the Microsoft Store stub is skipped), or `-Python`; the script asks Python for its real `sys.executable` as JSON. `host.bat` stays ASCII: a python.exe under the user's profile with a non-ASCII path is written as `%USERPROFILE%\…`, any other non-ASCII path in the OEM code page if it round-trips, else the script stops with a clear error. Manifest and config written as UTF-8 without BOM; the registry value is set with `Registry.SetValue`. The script ends with a self-test ping through `cmd.exe /d /s /c host.bat`, as Chrome starts it. `uninstall.ps1 [-RemoveConfig]` also removes `saved-folders.json`; `config.json` only with `-RemoveConfig`. **Neither script has been run** (no PowerShell during the build): 👤 check 8.)*
+
 **Protocol** (Chrome native messaging: 4-byte little-endian length + UTF-8 JSON; use `sys.stdin.buffer` / `sys.stdout.buffer` and flush after every message; host → Chrome messages ≤ 1 MB; nothing else may ever be written to stdout):
 
 ```ts
-// extension → host
+// extension → host (any request may carry a requestId, which error replies echo)
 { type: "ping" }
 { type: "download", requestId: string, videoId: string, stem: string, outputDir?: string, subfolder?: boolean }  // subfolder: lead decision, §7.1
-{ type: "cancel", requestId: string }
-{ type: "reveal", path: string }            // optional: explorer /select,"<path>"
+{ type: "cancel", requestId: string }       // answered only when it fails
+{ type: "reveal", path: string }            // optional: explorer /select,"<path>"; answered only when it fails
 
 // host → extension
-{ type: "pong", hostVersion: string, ytDlpVersion: string | null, ffmpegFound: boolean }
+{ type: "pong", hostVersion: string, ytDlpVersion: string | null, ffmpegFound: boolean, problems: string[] }  // problems: B9
 { type: "progress", requestId, percent: number | null, line: string }
 { type: "done", requestId, path: string }
-{ type: "error", requestId?, message: string, stderrTail?: string }
+{ type: "error", requestId?, message: string, stderrTail?: string, cancelled?: true }  // cancelled: B9
 ```
 
 **Validation (the host is the security boundary):**
@@ -419,7 +474,7 @@ subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, text=True, encoding="utf-8",
 - Per-song subfolder (default off)
 - Download folder: shows the learned path, with a manual override
 - Native host status: **Test connection** (`ping` → shows host version, yt-dlp version, ffmpeg found)
-- (Phase 8) Auto-download the Tony TTML after capture
+- (Phase 8) Auto-download the Tony TTML after capture *(not built, §8)*
 
 *(B11: `static/options.html` + `options.css` (light and dark) and `src/options/optionsPage.ts`; also the debug capture logging switch and the extension's ID (for `install.ps1 -ExtensionId`). Each change is saved at once, one setting per write; the override is saved trimmed when the field is committed, "" for none, with a warning (not a refusal) when it is not a full Windows/POSIX folder path, since the host would then use its fallbackOutputDir. Test connection lists the host's `problems` and gives up after 15 s on the page's side.)*
 
@@ -429,43 +484,48 @@ subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, text=True, encoding="utf-8",
 
 Each phase ends with `npm run typecheck && npm test` green and a short note in `docs/spike-notes.md` or the README where relevant. Ask me to try things in the live browser at the checkpoints marked 👤 — I'll report back.
 
+*(B12: the phases below were built as the build phases of §7.2; each is annotated with what was done and which 👤 checks remain. The README and `docs/spike-notes.md` were written once, at the end; the 👤 checkpoints are its numbered checks.)*
+
 ### Phase 0 — Spikes (de-risk before building)
 1. **CDP capture of BL's stream.** Throwaway extension: attach to the YTM tab, `Network.enable`, log `requestWillBeSent` / `responseReceived` (incl. `mimeType`) / `loadingFinished` for `v2/lyrics`, then try `Network.getResponseBody`. 👤 I click BL's refresh and report the console output.
    - If `getResponseBody` returns the full SSE text → use it (expected; the DevTools Response tab shows it).
    - If not (event-stream bodies are sometimes not buffered) → on `responseReceived` call `Network.streamResourceContent` and accumulate the base64 `data` from `Network.dataReceived` events.
    - Last resort → `Fetch.enable` with a `Response`-stage pattern for that URL, `Fetch.getResponseBody`, then `Fetch.fulfillRequest` with the same body (BL then gets the whole stream at once; acceptable).
    - *(B8, Chromium 141 against a mock: `getResponseBody` does **not** return it (BL's `getReader()` fetch ends as cancelled, with no data kept); `streamResourceContent` + `dataReceived` does. See the B8 note in §3.3; the 👤 check on real Chrome still applies.)*
-2. **Selectors on the live page** 👤: `.blyrics-dock__inner`, `.blyrics-dock__refresh`, `.blyrics-dock__source-name`; `ytmusic-player-bar .right-controls-buttons`; `#movie_player.getVideoData()` and `getPlayerResponse().videoDetails.musicVideoType` from the MAIN world; whether the URL `v` param tracks queue changes.
-3. **yt-dlp flags** 👤: run the §3.8 command by hand on one video; confirm progress lines, the final path line, and that `-x` works with my ffmpeg.
+   - *(B12: remains 👤 check 4 — which `bodySource` real Chrome uses, and that BL's stream ends with `event: done`.)*
+2. **Selectors on the live page** 👤: `.blyrics-dock__inner`, `.blyrics-dock__refresh`, `.blyrics-dock__source-name`; `ytmusic-player-bar .right-controls-buttons`; `#movie_player.getVideoData()` and `getPlayerResponse().videoDetails.musicVideoType` from the MAIN world; whether the URL `v` param tracks queue changes. *(B12: not run; 👤 checks 1 and 2, with console snippets.)*
+3. **yt-dlp flags** 👤: run the §3.8 command by hand on one video; confirm progress lines, the final path line, and that `-x` works with my ffmpeg. *(B9 ran the flags with yt-dlp 2026.08.19 and ffmpeg against a local file, also through the real host (§3.8 note); a real YouTube download on Windows is 👤 check 9.)*
 
 ### Phase 1 — Scaffold
-Repo layout, `package.json`, esbuild build to `dist/`, manifest, `scripts/gen-key.mjs` (generates the RSA key, writes the base64 public key to `static/manifest.json` `key`, prints the extension ID; private key goes to a gitignored file), empty SW/content/options entries that log on load. **Done when** the unpacked extension loads with a stable ID and the content script logs on music.youtube.com.
+Repo layout, `package.json`, esbuild build to `dist/`, manifest, `scripts/gen-key.mjs` (generates the RSA key, writes the base64 public key to `static/manifest.json` `key`, prints the extension ID; private key goes to a gitignored file), empty SW/content/options entries that log on load. **Done when** the unpacked extension loads with a stable ID and the content script logs on music.youtube.com. *(Done in B1; Chromium 141 loads `dist/` with ID `mengelecikhhdpjdebjpokcmhdkhjobj`. 👤 check 0: the same ID in your Chrome.)*
 
 ### Phase 2 — Parsing (pure, test-first)
-`sse.ts`, `sources.ts`, `filenames.ts` + tests against `test/fixtures/synthetic-stream.txt`. Build the synthetic fixture to mirror my capture's *structure* exactly (metadata; lrclib with `synced` + `plain`; musixmatch with `synced` + `wordByWord`; golyrics with double-encoded `{"ttml": …}` TTML incl. `itunes:timing="Word"`; qq with nested JSON + QRC XML; binimum TTML with `timingType`; `done`) but with **invented lyric text**. Also test: CRLF separators, a block split across two `data:` lines, golyrics as raw (not double-encoded) TTML, an unknown provider, malformed JSON in one block. **Done when** each provider in §1.5 yields the right `LyricsSource`s and tests pass.
+`sse.ts`, `sources.ts`, `filenames.ts` + tests against `test/fixtures/synthetic-stream.txt`. Build the synthetic fixture to mirror my capture's *structure* exactly (metadata; lrclib with `synced` + `plain`; musixmatch with `synced` + `wordByWord`; golyrics with double-encoded `{"ttml": …}` TTML incl. `itunes:timing="Word"`; qq with nested JSON + QRC XML; binimum TTML with `timingType`; `done`) but with **invented lyric text**. Also test: CRLF separators, a block split across two `data:` lines, golyrics as raw (not double-encoded) TTML, an unknown provider, malformed JSON in one block. **Done when** each provider in §1.5 yields the right `LyricsSource`s and tests pass. *(Done in B2 (`filenames.ts` in B1). The real `done` event's payload and the metadata's other fields are unknown (the fixture uses `data: {}`); 👤 check 4 reports them.)*
 
 ### Phase 2b — Tony TTML (pure, test-first)
-`ttml.ts`, `convert/musixmatchWord.ts`, `convert/qrc.ts`, `tonyPick.ts` per §3.2–3.2.3. Tests (synthetic input, invented words): golden-file output of `writeTonyTtml`; Musixmatch spaces-as-separators and hyphen-split words joined; QRC syllables joined, trailing-space word ends, parentheses inside lyrics, credit lines dropped only at the start, `offset` applied, XML entities decoded; every pick-order branch of `tonyPick`; a converted file round-trips through a small reader that applies Tony's rules from §1.6 (absolute times, adjacent spans = one word) to the same words and times. If real captures exist in `fixtures/local/`, also check every line's words and times survive conversion. Tony's `testdata/lyrics/moises-exporter-words.ttml` in jhhr/tony is the reference for the shape — link to it, don't copy it (GPL). **Done when** tests pass and 👤 I import one converted Musixmatch file and one converted QQ file into Tony without warnings.
+`ttml.ts`, `convert/musixmatchWord.ts`, `convert/qrc.ts`, `tonyPick.ts` per §3.2–3.2.3. Tests (synthetic input, invented words): golden-file output of `writeTonyTtml`; Musixmatch spaces-as-separators and hyphen-split words joined; QRC syllables joined, trailing-space word ends, parentheses inside lyrics, credit lines dropped only at the start, `offset` applied, XML entities decoded; every pick-order branch of `tonyPick`; a converted file round-trips through a small reader that applies Tony's rules from §1.6 (absolute times, adjacent spans = one word) to the same words and times. If real captures exist in `fixtures/local/`, also check every line's words and times survive conversion. Tony's `testdata/lyrics/moises-exporter-words.ttml` in jhhr/tony is the reference for the shape — link to it, don't copy it (GPL). **Done when** tests pass and 👤 I import one converted Musixmatch file and one converted QQ file into Tony without warnings. *(Built in B3 and B4; the converters are also checked against BL's own parsers. `fixtures/local/` is empty, so the two real-capture tests skip. 👤 check 7: Tony imports the committed goldens `test/fixtures/golden/musixmatch-word.ttml` and `qq.ttml`, then real converted files.)*
 
 ### Phase 3 — Capture manager
-`capture.ts` + `store.ts` with the on-demand flow, using whichever body-retrieval method Phase 0 chose; always-attached mode behind the option. **Done when** 👤 a capture from the SW console (`captureNow(tabId)` dev helper) stores a parsed capture for the playing song, the infobar disappears afterwards, and the token never appears in storage or logs.
+`capture.ts` + `store.ts` with the on-demand flow, using whichever body-retrieval method Phase 0 chose; always-attached mode behind the option. **Done when** 👤 a capture from the SW console (`captureNow(tabId)` dev helper) stores a parsed capture for the playing song, the infobar disappears afterwards, and the token never appears in storage or logs. *(Built in B5a and B5b, run end to end in Chromium by B8 (no token or key in storage, consoles or files, in both modes). 👤 check 4 captures through the lyrics button with the debug log on, which shows the same.)*
 
 ### Phase 4 — Lyrics button, menu, downloads
-`lyricsButton.ts`, `menu.ts`, `downloads.ts`, learned download folder. **Done when** 👤 on a song BL already cached: click → "Capturing…" → menu lists every source; "Download TTML for Tony" saves `<stem>.ttml` byte-identical to the `golyrics` TTML I'd have cut out by hand, and Tony imports it; "Download what's showing" saves the right file with the shared stem; raw response download matches what DevTools shows; button survives song changes and provider switches.
+`lyricsButton.ts`, `menu.ts`, `downloads.ts`, learned download folder. **Done when** 👤 on a song BL already cached: click → "Capturing…" → menu lists every source; "Download TTML for Tony" saves `<stem>.ttml` byte-identical to the `golyrics` TTML I'd have cut out by hand, and Tony imports it; "Download what's showing" saves the right file with the shared stem; raw response download matches what DevTools shows; button survives song changes and provider switches. *(Built in B6, B7a and B7b; B8 ran it in Chromium against the mock: Tony file = golyrics TTML byte for byte, raw = the streamed bytes, button survives BL replacing its controls. 👤 checks 3, 5 and 6 on the real page.)*
 
 ### Phase 5 — Native host
-Python host, `install.ps1`/`uninstall.ps1`, config, protocol, validation; a small `native-host/test_host.py` that drives the host over stdin/stdout with a fake yt-dlp (a script that prints canned progress) to test framing, validation and cancel. **Done when** 👤 Options → *Test connection* shows yt-dlp and ffmpeg versions.
+Python host, `install.ps1`/`uninstall.ps1`, config, protocol, validation; a small `native-host/test_host.py` that drives the host over stdin/stdout with a fake yt-dlp (a script that prints canned progress) to test framing, validation and cancel. **Done when** 👤 Options → *Test connection* shows yt-dlp and ffmpeg versions. *(Built in B9, reveal across runs in B11; Test connection ran in Chromium with the real host and a fake yt-dlp. It shows yt-dlp's version and whether ffmpeg is found, not ffmpeg's version. 👤 check 8: install.ps1 and Test connection on Windows.)*
 
 ### Phase 6 — Audio button
-`page-bridge.ts`, `audioButton.ts`, `audio.ts`. **Done when** 👤 one click saves `<stem>.<ext>` into the same folder as the lyrics files, with progress shown, errors readable (e.g. yt-dlp missing, ffmpeg missing), and the OMV warning appears on a music-video item.
+`page-bridge.ts`, `audioButton.ts`, `audio.ts`. **Done when** 👤 one click saves `<stem>.<ext>` into the same folder as the lyrics files, with progress shown, errors readable (e.g. yt-dlp missing, ffmpeg missing), and the OMV warning appears on a music-video item. *(Built in B7a (page bridge), B10 and B11; B11 ran it end to end in Chromium with the real host and a fake yt-dlp. 👤 checks 2 and 9–12.)*
 
 ### Phase 7 — Options, polish, README
-Options page (§3.9), README with Windows install steps (build → load unpacked → `install.ps1 -ExtensionId …` → test connection → optional `--silent-debugger-extension-api`), and a troubleshooting section (BL updated and selectors broke; dock disabled; infobar *Cancel* pressed; host not registered).
+Options page (§3.9), README with Windows install steps (build → load unpacked → `install.ps1 -ExtensionId …` → test connection → optional `--silent-debugger-extension-api`), and a troubleshooting section (BL updated and selectors broke; dock disabled; infobar *Cancel* pressed; host not registered). *(Options page in B11; README and `docs/spike-notes.md` in B12. `-ExtensionId` turned out optional: it defaults to the fixed ID.)*
 
 ### Phase 8 — Optional, later
 - Download the Tony TTML automatically after each capture (or when the audio button is used).
 - One "Grab all" button: audio + best lyrics in one click.
 - Write BL's current offset into a sidecar file.
+
+*(Not built; listed in §8.)*
 
 ---
 
@@ -474,7 +534,7 @@ Options page (§3.9), README with Windows install steps (build → load unpacked
 | Risk | Mitigation |
 |---|---|
 | BL renames its dock classes or changes its API stream | All BL specifics in `blyrics.ts` with the verified version; fallback floating button; unknown providers saved as JSON; raw stream download always available |
-| `getResponseBody` doesn't return event-stream bodies | Phase 0 decides; two CDP fallbacks listed |
+| `getResponseBody` doesn't return event-stream bodies | Phase 0 decides; two CDP fallbacks listed *(B5b collects all three ways at once; B8: in Chromium 141 only `streamResourceContent` delivers, and the capture then relies on the stream's `event: done`, §8)* |
 | Debugger infobar is annoying | On-demand attach for a few seconds; Chrome flag to silence it |
 | Refresh click causes one extra request to BL's lyrics API per capture | Only on demand, one per click; always-attached mode avoids extra requests entirely |
 | Chrome launched from the Start menu doesn't see my PATH | Host uses absolute `ytDlpPath` / `ffmpegLocation` from `config.json` |
@@ -484,8 +544,8 @@ Options page (§3.9), README with Windows install steps (build → load unpacked
 
 ## 6. Open questions (defaults in brackets — proceed with the default if I haven't answered)
 
-1. Audio format for Moises/Tony: keep yt-dlp's default from `-x` (usually Opus or M4A), or force `--audio-format wav`/`mp3`? [keep `-x` as today; configurable through `extraArgs`]
-2. Per-song subfolders? [off]
+1. Audio format for Moises/Tony: keep yt-dlp's default from `-x` (usually Opus or M4A), or force `--audio-format wav`/`mp3`? [keep `-x` as today; configurable through `extraArgs`] *(Built with the default.)*
+2. Per-song subfolders? [off] *(Built as an option, off by default.)*
 
 Answered: Tony reads Apple-style TTML (as Moises produces and BL's `golyrics` provides) — see §1.6.
 
@@ -501,13 +561,13 @@ The work is done by a line of phase agents, one build phase each, run by a lead 
 | Capture store | Raw inputs only, sources derived on read; count + size eviction (§3.4) | 10 MB session quota |
 | Unison | Parse `{ data: … }`; richsync LRC converted like Musixmatch (§1.5, §3.2.3) | Checked in BL 3.0.0.4 |
 | Enhanced LRC | Separator and compact styles; `[bg:]` dropped (§3.2.1) | Checked in BL's parser |
-| QRC credits | BL's rules: first 5 lines, title/artist, equal-duration pieces, credit keys (§3.2.2) | Checked in BL's parser |
+| QRC credits | BL's rules: first 5 lines, title/artist, equal-duration pieces, credit keys (§3.2.2). *Corrected after B4: any number of leading credit lines is dropped (stopping at the first line that is not one); only the equal-duration test is limited to the first 5 lyric lines* | Checked in BL's parser |
 | Who commits | The lead, after review; pushes go to the session branch | Default |
 | Tony test data | Linked, never copied (§4 Phase 2b) | User's instruction |
 | Filename stem source | Always from YTM's now-playing info (page bridge `title`/`author` + `videoId`), sent by the content script with every download request and re-sanitised by the SW (and by the host for audio). Capture metadata (`song`/`artist`) is used only when the capture's videoId is not the playing one | BL's API metadata can spell artist/title differently from YTM, which would break "audio and lyrics share one stem" |
 | Per-song subfolder for audio | Host protocol `download` gets `subfolder?: boolean`; the host itself creates `<outputDir>\<sanitised stem>\` (one level, inside a validated existing `outputDir`) | The host only accepts existing directories, and the subfolder does not exist yet |
 | Reveal after the host exits | The host remembers the folders it saved to in `native-host/saved-folders.json` (most recent 200) and allows `reveal` inside those, across runs | The worker closes the native port when idle (B10), so "folders written this session" would refuse every reveal; a remembered list keeps the rule's intent |
-| Lyrics button placement | In `.blyrics-dock__inner` after `__controls`, as specified; if B8 shows BL's dock layout pushes it out of view, revisit | §3.5 |
+| Lyrics button placement | In `.blyrics-dock__inner` after `__controls`, as specified; if B8 shows BL's dock layout pushes it out of view, revisit *(B8: visible in the mock dock, whose CSS only approximates BL's; 👤 check 3 on the real one)* | §3.5 |
 | Tony pick gaps (§3.2.3) | `golyrics` timed by `line` or `plain` drops to group 6 (first in it); with `word`/`syllable`/`unknown` it stays first. A Unison TTML of `unknown` timing goes to group 6, not 2. B4, where the spec is silent: `binimum` TTML whose own `itunes:timing` says Word (no `timingType`) counts as group 3; every other TTML without word timing goes to group 6 (golyrics, binimum, Unison); Unison's line LRC comes last in group 7 | The user wants word timing; "golyrics first" assumed it |
 
 ### 7.2 Build phases
@@ -527,4 +587,64 @@ Each line is marked "Done <date> (<commits>)" when finished. Mapping to §4 in b
 - **B9** Native host + installer scripts + host tests [Phase 5] — Done 2026-10-04 (c1e471d)
 - **B10** Audio button + page bridge + SW audio relay [Phase 6] — Done 2026-10-04 (21c504c)
 - **B11** Options page; end-to-end audio with the real host and a fake yt-dlp [Phase 7, part] — Done 2026-10-04 (8a2ce03)
-- **B12** Documentation pass: README, `docs/spike-notes.md` 👤 checklist, this plan brought up to date [Phase 7, rest]
+- **B12** Documentation pass: README, `docs/spike-notes.md` 👤 checklist, this plan brought up to date [Phase 7, rest] — Done 2026-10-04
+
+---
+
+## 8. Known limitations and open points
+
+Gathered from the build log (`docs/WORK_ORDERS.md` §5) at the end of B12. Each says what happens and the cheapest fix; none blocks normal use. The 👤 checks in `docs/spike-notes.md` settle the ones marked "unverified".
+
+### 8.1 Capture
+
+| Point | Consequence | Cheapest fix |
+|---|---|---|
+| **The capture relies on BL's stream ending with `event: done`.** In Chromium 141 BL's streamed fetch never "finishes" for the debugger: it ends as cancelled, and the capture accepts a cancelled response only when its text has a `done` event (§3.3 B8 note). The real `done` payload is unknown (fixtures use `data: {}`). | If BL's service stops sending `done`, or renames it, every capture fails with "The lyrics request was cancelled before it finished". | `streamHasEnded()` in `src/shared/blRequests.ts` is the one place to change. 👤 check 4 shows what the real stream ends with. |
+| **Which body path real Chrome uses** is unverified (Chromium 141: `streamResourceContent` only). | None while one of the three paths delivers; the debug log names it. | 👤 check 4. |
+| **The service worker wakes on every tab load and every download**: `tabs.onUpdated` (always mode attaches YouTube Music tabs as they load) and `downloads.onChanged` (the learned folder) take no URL filter in Chrome and must be registered at top level in every mode. | The worker starts briefly for any page load in any tab, and any download; a small cost, no change in behaviour. | Replace `tabs.onUpdated` with `chrome.webNavigation.onCompleted` filtered to music.youtube.com (needs the `webNavigation` permission); the downloads listener has no filtered equivalent. |
+| **Always attached mode with several tabs or a mode switch during a capture** is covered only by unit tests with a fake debugger; the end-to-end test drives one tab. | Possible missed captures or a debugging bar left up in those cases. | An end-to-end test with two tabs; meanwhile on demand (the default) avoids it. 👤 check 14 tries it. |
+| **On demand needs BL's refresh button.** Without it BL serves its 7-day cache and makes no request; the click says so instead of attaching for nothing. Each capture costs BL's lyrics service one extra request. | A user who hides the refresh control must use always attached mode. | By design (§5). |
+| **Captures live in `chrome.storage.session`**: the 30 most recently used (and at most 8 MiB), gone when Chrome restarts. A capture the index does not list (only after the index itself was corrupted) is removed only when `get()` meets it. | A song captured before a restart is captured again on the next click. | None needed. |
+
+### 8.2 Lyrics button and menu
+
+| Point | Consequence | Cheapest fix |
+|---|---|---|
+| **BL's page details are unverified on the real page**: the selectors in `src/shared/blyrics.ts` (checked against BL 3.0.0.4's source), the look of the button in BL's real dock (the end-to-end test's dock only approximates BL's CSS), and where the floating button lands in YouTube Music's real `#side-panel`. | A BL update can hide the button or break "what's showing"; the raw download still works while the capture does. | 👤 checks 1 and 3; then `BL_SELECTORS` / `BL_VERIFIED_VERSION`. |
+| **A dock with all its controls turned off** is hidden by BL's CSS, and the lyrics button inside it. No floating button either: the dock exists. | No lyrics button until a dock control is turned back on. | In `lyricsButton.ts`, treat a dock that is not rendered (no client rects) like no dock, so the floating button shows. |
+| **Stale Tony label in a rare case** (B6): the menu's "Download TTML for Tony" label comes from the capture summary, whose pick ran with a placeholder title; the download makes the pick again with the real one. Only when the real title alone pushes a converted file over Tony's 1 MiB does the download fall to the next candidate. A pick that skipped candidates shows no warning either. | The menu names one source and saves another (still as `<stem>.ttml`). | Send the stem with `capture:get` / `start` so the summary's pick uses the real title; or name the saved source in the "Saved" message. |
+| **The menu is not moved on window resize or scroll.** | After a resize the open menu can sit away from its button or partly outside the window; reopening fixes it. | Close the menu on `resize` and `scroll` in `menu.ts`. |
+| **Extension reloaded during a capture**: the tab says "The extension's background stopped; try again"; only the next click says "The extension was reloaded: reload this tab" (Chromium 141: the port closes while the old context still looks alive). | One confusing message after reloading the extension mid-capture. | Reword `FLOW_TEXT.backgroundStopped` to mention reloading the tab. |
+| **Wording**: the no-refresh-button message says "enable Always-capture in this extension's options", but the option is labelled "Always attached". | A small mismatch for the reader. | Change `FLOW_TEXT.noRefresh` in `lyricsFlow.ts`. |
+| **Lyrics always go to Chrome's download folder** (`chrome.downloads` can write nowhere else); the folder override applies to audio only. | With an override, lyrics and audio land in different folders. | None in an extension; the options page says so. |
+
+### 8.3 Audio and the native host
+
+| Point | Consequence | Cheapest fix |
+|---|---|---|
+| **Titles with `$NAME` / `${NAME}` (or `%NAME%` in a folder name) are refused** for audio when NAME is an environment variable that exists: yt-dlp would replace it with the variable's value (§3.8 B9 note). | That song's audio cannot be downloaded with the button (its lyrics can). | Let yt-dlp save under a neutral name (`pg-<requestId>.%(ext)s`) in the validated folder and have the host rename the file to `<stem>.<ext>` (and move it into the per-song folder) itself; that also makes the `%` doubling unnecessary. |
+| **Stop download leaves yt-dlp's `.part` file.** | A partial file (possibly large) stays next to the songs; yt-dlp resumes it if the same song is downloaded again. | After a cancelled download the host deletes `<folder>\<stem>.*.part` (the stem is known exactly). |
+| **No cross-process lock on `saved-folders.json`**: two host processes saving a download in the same moment can each write the file without the other's folder. | A later reveal of the dropped folder's file is refused until a download saves there again. Rare: one host process serves all downloads; ping and reveal processes do not write. | A lock file around the read-merge-write (`msvcrt.locking` on Windows). |
+| **The options page's "Audio goes to" repeats `audio.ts`'s choice** (override, else learned folder) and the host's absolute-path rule, and cannot see whether the folder exists (the host then falls back). | If one side changes without the other, the line misleads; a folder that does not exist shows as the destination. | One shared function in `src/shared/` used by both `audio.ts` and `optionsPage.ts`. |
+| **Unicode tables can differ** between the host's Python (`unicodedata`) and Chrome's: the host's port of `sanitizeFilename()` turns format characters into spaces by category, so a character newly assigned in one Unicode version and not the other is kept by one side and replaced by the other. The two ports are kept in step by hand (`test/fixtures/sanitize-vectors.json` is the contract). | Audio refused ("Not a usable file name: …") for a title with such a character; very rare. | A recent Python (conda's 3.12 or newer); or let the host ignore code points its tables do not know. |
+| **Chrome's native messaging error texts are matched word for word** (`CHROME_HOST_ERRORS` in `audio.ts`, checked in Chromium 141). | If Chrome rewords them, the user sees Chrome's own sentence instead of "The native host is not installed…". | Match on key words; 👤 check 13 reports the texts. |
+| **The audio button's states live in the page**: reloading it shows every song as idle again, so the check mark that reveals a file is gone. Downloading a song whose file already exists (yt-dlp's "already downloaded" path) is untested. | Reveal only from the page that downloaded; unknown behaviour on a repeat download. | 👤 check 9 tries the repeat. |
+| **`install.ps1` and `uninstall.ps1` have never run** (no PowerShell during the build; reviewed line by line, including the self-test ping through `cmd.exe`). | Their first run on Windows is their test. | 👤 check 8. |
+| **YouTube Music's player details are unverified**: `ytmusic-player-bar .right-controls-buttons` (where the audio button goes), the player bar's title/byline selectors (`PLAYER_BAR_SELECTORS`, the fallback), and whether `getVideoData().author` is the artist or "Artist - Topic". | A wrong place hides the audio button; "Artist - Topic" would start every file name with it (audio and lyrics still match: both take their stem from the same place). | 👤 check 2; strip " - Topic" in `stemFor()` if it shows up. |
+| **The host's security tests were not seen failing with the checks weakened** (B9: the session refused that experiment); the lead verified them by reading. | None known. | — |
+
+### 8.4 Setup and platform
+
+| Point | Consequence | Cheapest fix |
+|---|---|---|
+| **Long paths**: a stem is up to 150 characters and appears twice with the per-song folder (`<folder>\<stem>\<stem>.musixmatch-word.ttml`). | Past Windows' 260-character limit Chrome or yt-dlp may fail to save; typical stems are far shorter. | Keep the download folder short (README); or cap the folder name shorter than the file stem. |
+| **No `.gitattributes`**: Git for Windows usually checks text files out with CRLF line endings. | The extension and host work, but unit tests comparing fixtures byte for byte fail on such a clone. The README clones with `core.autocrlf=false`. | Add `.gitattributes` with `* text=auto eol=lf` (or `-text` for `test/fixtures/**`). |
+| **The end-to-end tests run on Linux only** (`openssl`, `/bin/sh`, `python3`, Playwright's Chromium), and the host tests that run the fake yt-dlp skip on Windows. | The user's machine runs the unit tests only. | — |
+| **`fixtures/local/` is empty**: the two tests that check the Musixmatch and QQ converters against real captures skip, so the converters were checked on invented data and against BL's own parsers only. | Real-data surprises show up first in Tony (👤 check 7). | Put raw streams (the "Raw response (.txt)" files) in `fixtures/local/` and run `npm test`. |
+| **`--silent-debugger-extension-api`** hides Chrome's debugging bar for every extension, not just this one. | The bar no longer warns about any extension using the debugger. | A documented trade-off (README step 6); on demand mode keeps the bar to a few seconds without it. |
+
+### 8.5 Not built (Phase 8)
+
+- Download the Tony TTML automatically after each capture, or with the audio.
+- One "Grab all" button: audio and the best lyrics in one click.
+- BL's per-song offset written to a sidecar file (today a message names it after each download of that song's files).
