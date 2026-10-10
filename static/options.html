@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>YTM Practice Grabber options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+<!-- The controls are wired up by options.js (src/options/optionsPage.ts), by id. Every setting is
+     saved as soon as it changes; the page also follows changes made elsewhere. -->
+<main>
+  <h1>YTM Practice Grabber</h1>
+  <p class="intro">Lyrics files and audio from YouTube Music, named alike, for practising with Tony.</p>
+  <p id="page-error" class="page-error" role="alert" hidden></p>
+
+  <section aria-labelledby="capture-heading">
+    <h2 id="capture-heading">Lyrics capture</h2>
+    <fieldset id="capture-mode" disabled>
+      <legend>When to capture</legend>
+      <span class="saved-note" data-saved-for="captureMode" role="status"></span>
+      <div class="choice">
+        <input type="radio" id="capture-on-demand" name="captureMode" value="on-demand">
+        <label for="capture-on-demand">On demand <span class="tag">recommended</span></label>
+        <p class="hint">Chrome's debugger is attached to the tab only for the few seconds after you click the
+          lyrics button, while Better Lyrics loads the song's lyrics again. Meanwhile Chrome shows a bar saying
+          that &ldquo;YTM Practice Grabber&rdquo; started debugging this browser.</p>
+      </div>
+      <div class="choice">
+        <input type="radio" id="capture-always" name="captureMode" value="always">
+        <label for="capture-always">Always attached</label>
+        <p class="hint">The debugger stays attached to every YouTube Music tab and keeps whatever lyrics Better
+          Lyrics loads, so a click needs no extra request. Chrome's debugging bar stays up the whole time
+          (starting Chrome with <code>--silent-debugger-extension-api</code> hides it).</p>
+      </div>
+    </fieldset>
+    <div class="choice" id="debug-capture-row">
+      <input type="checkbox" id="debug-capture" disabled>
+      <label for="debug-capture">Debug capture logging</label>
+      <span class="saved-note" data-saved-for="debugCapture" role="status"></span>
+      <p class="hint">Writes each capture's steps (which way the lyrics response was read) to the service
+        worker's console. Never the request or the lyrics.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="downloads-heading">
+    <h2 id="downloads-heading">Downloads</h2>
+    <div class="choice">
+      <input type="checkbox" id="per-song-subfolder" disabled>
+      <label for="per-song-subfolder">A folder for each song</label>
+      <span class="saved-note" data-saved-for="perSongSubfolder" role="status"></span>
+      <p class="hint">Saves a song's files in a folder named like them: lyrics in
+        <code>&lt;song&gt;\</code> in Chrome's download folder, audio in <code>&lt;song&gt;\</code> in the
+        audio folder below. Handy with Tony, whose Import Lyrics dialog opens in the audio's folder.</p>
+    </div>
+
+    <h3>Audio folder</h3>
+    <p class="field">Chrome's download folder: <code id="learned-dir" class="path"></code></p>
+    <p class="hint">Learned from your last lyrics download. Audio is saved there too, next to the lyrics,
+      unless you choose another folder here.</p>
+    <p class="field">
+      <label for="dir-override">Save audio in this folder instead</label>
+      <span class="saved-note" data-saved-for="downloadDirOverride" role="status"></span>
+      <input type="text" id="dir-override" class="path-input" spellcheck="false" autocomplete="off"
+             placeholder="C:\Users\you\Music" aria-describedby="dir-override-hint dir-override-warning" disabled>
+    </p>
+    <p id="dir-override-hint" class="hint">A full folder path; empty uses Chrome's download folder. Saved when
+      you leave the field or press Enter. Lyrics always go to Chrome's download folder.</p>
+    <p id="dir-override-warning" class="warning" hidden></p>
+    <p class="field">Audio goes to: <span id="audio-dir" class="path"></span></p>
+  </section>
+
+  <section aria-labelledby="host-heading">
+    <h2 id="host-heading">Native host</h2>
+    <p>Audio is downloaded by yt-dlp through a small helper program, the native host. Its installer,
+      <code>native-host\install.ps1</code>, registers it for this extension's ID:
+      <code id="extension-id"></code></p>
+    <p><button type="button" id="test-connection">Test connection</button></p>
+    <div id="connection-result" class="connection-result" role="status" aria-live="polite"></div>
+  </section>
+</main>
+<script src="options.js"></script>
+</body>
+</html>

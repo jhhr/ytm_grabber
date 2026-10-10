@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" itunes:timing="Word">
+  <head>
+    <metadata>
+      <ttm:title>Marrow &amp; Tin - Paper Kites</ttm:title>
+      <ttm:agent type="person" xml:id="v1"/>
+    </metadata>
+  </head>
+  <body dur="1:03.750">
+    <div begin="0:00.480" end="1:03.750">
+      <p begin="0:00.480" end="0:02.050" ttm:agent="v1" itunes:key="L1"><span begin="0:00.480" end="0:00.750">Kite</span> <span begin="0:00.810" end="0:01.240">strings</span> <span begin="0:01.300" end="0:01.420">un</span><span begin="0:01.420" end="0:01.710">rav</span><span begin="0:01.710" end="0:02.050">el</span></p>
+      <p begin="0:04.370" end="0:05.830" ttm:agent="v1" itunes:key="L2"><span begin="0:04.370" end="0:04.690">Rope</span> <span begin="0:04.720" end="0:04.880">&amp;</span> <span begin="0:04.950" end="0:05.830">&lt;string&gt;</span></p>
+      <p begin="1:01.400" end="1:03.750" ttm:agent="v1" itunes:key="L3"><span begin="1:01.400" end="1:01.920">Fly</span> <span begin="1:02.050" end="1:03.750">home</span></p>
+    </div>
+  </body>
+</tt>

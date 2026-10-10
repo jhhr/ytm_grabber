@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "YTM Practice Grabber",
+  "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsv+7q3xxWkRnyNtN4rhAqJkqLnNM7FsepdExbhLrwgcxJ3PoVOw2chjfNxDW23/mEdjMYXdF0fI1nh8meqtRpTiYFYFqrTgLki/rT9Bcjeo9vK4vpmPZq6Ky38oiEsvMwKG4DPOkX3vyvoaL1QMDkaIBqmYbHAkGYFg+M6MXa7brTbINgYv9qX0csXYJjccM9+FFy4uiR7zzJYsaOHWt9OTVR8rnVdmbvebm9ErarV4WO5e6oQLDP0KRHlveMO1R/TWS41gfY1VxnXwRvhoWfDTSqDn/T2Pc4RVsg7ZM/kh4gG5tjLIoB++B6m94T5VV8ieNRnhxKS/FM1+iMpzpEwIDAQAB",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "debugger",
+    "downloads",
+    "nativeMessaging",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://music.youtube.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "page-bridge.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}

@@ -1,0 +1,88 @@
+import { describe, expect, it } from "vitest";
+import { AUDIO_PORT, CAPTURE_PORT, isAudioPortRequest, isCapturePortRequest, isExtensionRequest } from "../src/shared/messages";
+
+const ID = "Synth3t1cK1";
+// Not video ids: wrong length, a character outside [A-Za-z0-9_-], a trailing newline, not a string.
+const BAD_IDS: unknown[] = ["", "Synth3t1cK", "Synth3t1cK12", "Synth3t1c K", "Synth3t1c/1", `${ID}\n`, "capture:idx", 12345678901, null, undefined, [ID]];
+
+describe("isExtensionRequest", () => {
+  it("accepts capture:get with a video id", () => {
+    expect(isExtensionRequest({ type: "capture:get", videoId: ID })).toBe(true);
+    // Extra fields are ignored by the handlers, not refused.
+    expect(isExtensionRequest({ type: "capture:get", videoId: ID, extra: 1 })).toBe(true);
+  });
+
+  it("refuses capture:get without a valid video id", () => {
+    for (const videoId of BAD_IDS) expect(isExtensionRequest({ type: "capture:get", videoId }), JSON.stringify(videoId)).toBe(false);
+    expect(isExtensionRequest({ type: "capture:get" })).toBe(false);
+  });
+
+  it("accepts lyrics:download with a video id, an item id and a stem", () => {
+    expect(isExtensionRequest({ type: "lyrics:download", videoId: ID, itemId: "tony", stem: `Marrow & Tin - Northbound Kites [${ID}]` })).toBe(true);
+  });
+
+  it("refuses lyrics:download with a bad video id or a missing, empty or non-string item id or stem", () => {
+    const good = { type: "lyrics:download", videoId: ID, itemId: "tony", stem: "stem" };
+    for (const videoId of BAD_IDS) expect(isExtensionRequest({ ...good, videoId })).toBe(false);
+    for (const key of ["itemId", "stem"]) {
+      for (const value of [undefined, "", 1, null, ["x"], { toString: () => "x" }]) {
+        expect(isExtensionRequest({ ...good, [key]: value }), `${key} = ${String(value)}`).toBe(false);
+      }
+    }
+  });
+
+  it("accepts only download item ids in lyrics:download (lyricsItems.ts grammar)", () => {
+    const good = { type: "lyrics:download", videoId: ID, stem: `x [${ID}]` };
+    for (const itemId of ["tony", "raw", "native:golyrics", "ttml:musixmatch-word", "native:new_provider"]) {
+      expect(isExtensionRequest({ ...good, itemId }), itemId).toBe(true);
+    }
+    // showing is resolved by the menu model and recapture is the content script's own action.
+    for (const itemId of ["showing", "recapture", "native:", "native:../x", "ttml:Golyrics", "golyrics", "note:other-song", "divider:1"]) {
+      expect(isExtensionRequest({ ...good, itemId }), itemId).toBe(false);
+    }
+  });
+
+  it("refuses what is not a request", () => {
+    for (const value of [null, undefined, "capture:get", 1, [], [{ type: "capture:get", videoId: ID }], { videoId: ID }, { type: "capture:start", videoId: ID }, { type: "CAPTURE:GET", videoId: ID }]) {
+      expect(isExtensionRequest(value), JSON.stringify(value)).toBe(false);
+    }
+  });
+});
+
+describe("audio requests", () => {
+  it("accepts audio:ping as it is and audio:reveal with a path", () => {
+    expect(isExtensionRequest({ type: "audio:ping" })).toBe(true);
+    expect(isExtensionRequest({ type: "audio:reveal", path: "C:\\Users\\me\\Downloads\\x [nKites0042x].opus" })).toBe(true);
+    for (const path of [undefined, "", 1, null, ["x"]]) expect(isExtensionRequest({ type: "audio:reveal", path }), String(path)).toBe(false);
+  });
+});
+
+describe("the audio port", () => {
+  it("is named audio", () => {
+    expect(AUDIO_PORT).toBe("audio");
+  });
+
+  it("accepts start with a video id and a stem, and cancel", () => {
+    expect(isAudioPortRequest({ type: "start", videoId: ID, stem: `x [${ID}]` })).toBe(true);
+    expect(isAudioPortRequest({ type: "cancel" })).toBe(true);
+    for (const videoId of BAD_IDS) expect(isAudioPortRequest({ type: "start", videoId, stem: `x [${ID}]` })).toBe(false);
+    for (const stem of [undefined, "", 1, null, ["x"]]) expect(isAudioPortRequest({ type: "start", videoId: ID, stem }), String(stem)).toBe(false);
+    for (const value of [null, "start", "cancel", { type: "progress", percent: 1 }, { type: "audio:reveal", path: "x" }, [{ type: "cancel" }]]) {
+      expect(isAudioPortRequest(value), JSON.stringify(value)).toBe(false);
+    }
+  });
+});
+
+describe("the capture port", () => {
+  it("is named capture", () => {
+    expect(CAPTURE_PORT).toBe("capture");
+  });
+
+  it("accepts start with a video id and nothing else", () => {
+    expect(isCapturePortRequest({ type: "start", videoId: ID })).toBe(true);
+    for (const videoId of BAD_IDS) expect(isCapturePortRequest({ type: "start", videoId })).toBe(false);
+    for (const value of [null, "start", { type: "ready" }, { type: "done", summary: {} }, { type: "capture:get", videoId: ID }, [{ type: "start", videoId: ID }]]) {
+      expect(isCapturePortRequest(value), JSON.stringify(value)).toBe(false);
+    }
+  });
+});

@@ -1,0 +1,490 @@
+/* Content script styles (dist/content.css). Own pg- classes only, never BL's (spec 3.5). */
+
+/* The lyrics button in Better Lyrics' dock, sized and coloured like BL 3.0.0.4's
+   .blyrics-dock__control (28 px, 9 px radius, white at 60 % / 95 % on hover) and dimmed to 72 %
+   like BL's control group until the dock is hovered. BL defines no custom properties for these,
+   so the values are copied; ours are named so they can be tuned in one place. The dock is BL's
+   dark glass over YTM's dark page in either colour scheme, so white strokes stay readable, as BL's
+   own icons are. */
+.pg-dock-btn,
+.pg-floating-btn {
+  --pg-btn-fg: hsla(0, 0%, 100%, 0.6);
+  --pg-btn-fg-hover: hsla(0, 0%, 100%, 0.95);
+  --pg-btn-bg-hover: hsla(0, 0%, 100%, 0.16);
+  --pg-btn-focus: hsla(0, 0%, 100%, 0.7);
+  --pg-btn-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--pg-btn-fg);
+  font: inherit;
+  line-height: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    background-color 160ms var(--pg-btn-ease),
+    color 160ms var(--pg-btn-ease),
+    opacity 200ms var(--pg-btn-ease);
+}
+
+.pg-dock-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  opacity: 0.72;
+}
+
+/* The parent is BL's dock row: brighten with BL's controls while it is hovered or focused. */
+:hover > .pg-dock-btn,
+:focus-within > .pg-dock-btn {
+  opacity: 1;
+}
+
+.pg-dock-btn:hover,
+.pg-floating-btn:hover {
+  background-color: var(--pg-btn-bg-hover);
+  color: var(--pg-btn-fg-hover);
+}
+
+/* BL turns the outline off for every button in its dock; a ring keeps keyboard focus visible. */
+.pg-dock-btn:focus-visible,
+.pg-floating-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--pg-btn-focus);
+}
+
+.pg-dock-btn svg,
+.pg-floating-btn svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* Fallback when BL shows lyrics without a dock. The anchor is our own zero-height box, prepended
+   to #side-panel: it spans the panel's width and is the containing block of the button, which
+   sits at the top right, 64 px down like BL's own top dock positions (clear of YTM's tab row).
+   Nothing of YTM's or BL's is restyled. */
+.pg-floating-anchor {
+  position: relative;
+  z-index: 50; /* BL's dock level */
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+/* Over whatever the side panel shows, so it brings its own background and border: readable on
+   dark and on light backgrounds alike. */
+.pg-floating-btn {
+  --pg-btn-fg: hsla(0, 0%, 100%, 0.85);
+  --pg-btn-fg-hover: #fff;
+  --pg-btn-bg-hover: hsl(0, 0%, 22%);
+
+  position: absolute;
+  top: 64px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid hsla(0, 0%, 100%, 0.18);
+  border-radius: 12px;
+  background-color: hsla(0, 0%, 9%, 0.88);
+  box-shadow: rgba(0, 0, 0, 0.35) 0 6px 18px -8px;
+}
+
+.pg-floating-btn:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--pg-btn-focus),
+    rgba(0, 0, 0, 0.35) 0 6px 18px -8px;
+}
+
+/* BL hides its lyrics on every tab but Lyrics; the floating button goes with them. */
+#side-panel:has(#tab-renderer:not([page-type="MUSIC_PAGE_TYPE_TRACK_LYRICS"])) > .pg-floating-anchor {
+  display: none;
+}
+
+/* The button while its menu is open, and while a capture runs (lyricsFlow.ts: aria-busy, pg-busy,
+   tooltip "Capturing..."): fully lit, the icon pulsing. */
+.pg-dock-btn[aria-expanded="true"],
+.pg-floating-btn[aria-expanded="true"] {
+  opacity: 1;
+  background-color: var(--pg-btn-bg-hover);
+  color: var(--pg-btn-fg-hover);
+}
+
+.pg-dock-btn.pg-busy,
+.pg-floating-btn.pg-busy {
+  opacity: 1;
+  color: var(--pg-btn-fg-hover);
+  cursor: progress;
+}
+
+.pg-busy svg {
+  animation: pg-busy-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes pg-busy-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-busy svg {
+    animation: none;
+    opacity: 0.55;
+  }
+}
+
+/* The lyrics menu (menu.ts), in <body> like BL's dock menus and styled after them (11 px radius,
+   12 px text, 7 px item radius), but on an opaque dark ground: it opens over lyrics, artwork
+   and YTM's light or dark surfaces alike and must stay readable on all of them. Above BL's menus
+   (z-index 2147483000). menu.ts sets top/bottom/left and --pg-menu-room, the free height on the
+   side it opens to. */
+.pg-menu {
+  --pg-menu-fg: hsla(0, 0%, 100%, 0.86);
+  --pg-menu-fg-strong: hsla(0, 0%, 100%, 0.98);
+  --pg-menu-fg-dim: hsla(0, 0%, 100%, 0.56);
+  --pg-menu-fg-disabled: hsla(0, 0%, 100%, 0.4);
+  --pg-menu-hover: hsla(0, 0%, 100%, 0.09);
+  --pg-menu-note: hsl(40, 90%, 68%);
+
+  position: fixed;
+  z-index: 2147483100;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 240px;
+  max-width: min(380px, calc(100vw - 16px));
+  max-height: min(440px, var(--pg-menu-room, calc(100vh - 16px)));
+  margin: 0;
+  padding: 5px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid hsla(0, 0%, 100%, 0.1);
+  border-radius: 11px;
+  background-color: hsla(0, 0%, 8%, 0.96);
+  backdrop-filter: blur(26px);
+  box-shadow:
+    rgba(0, 0, 0, 0.45) 0 12px 32px -10px,
+    inset rgba(255, 255, 255, 0.08) 0 1px 0 0;
+  color: var(--pg-menu-fg);
+  color-scheme: dark;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pg-menu:focus {
+  outline: none;
+}
+
+.pg-menu--busy,
+.pg-menu--busy .pg-menu__item {
+  cursor: progress;
+}
+
+.pg-menu__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 140ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 140ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pg-menu__item:not([aria-disabled="true"]):hover,
+.pg-menu__item:focus {
+  background-color: var(--pg-menu-hover);
+  color: var(--pg-menu-fg-strong);
+}
+
+.pg-menu__item:focus-visible {
+  box-shadow: inset 0 0 0 1px hsla(0, 0%, 100%, 0.55);
+}
+
+.pg-menu__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pg-menu__item--bold .pg-menu__label {
+  font-weight: 700;
+  color: var(--pg-menu-fg-strong);
+}
+
+.pg-menu__item--showing .pg-menu__label {
+  color: hsl(45, 95%, 70%);
+}
+
+.pg-menu__detail {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--pg-menu-fg-dim);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pg-menu__item[aria-disabled="true"] {
+  color: var(--pg-menu-fg-disabled);
+  cursor: default;
+}
+
+.pg-menu__item[aria-disabled="true"] .pg-menu__label {
+  color: inherit;
+}
+
+.pg-menu__detail--reason {
+  color: hsla(0, 0%, 100%, 0.62);
+  font-style: italic;
+}
+
+.pg-menu__item--note {
+  color: var(--pg-menu-note);
+}
+
+.pg-menu__item--note .pg-menu__detail {
+  color: var(--pg-menu-fg);
+}
+
+.pg-menu__divider {
+  flex: 0 0 auto;
+  height: 1px;
+  margin: 4px 6px;
+  background-color: hsla(0, 0%, 100%, 0.12);
+}
+
+.pg-menu__header {
+  flex: 0 0 auto;
+  padding: 6px 8px 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pg-menu-fg-dim);
+}
+
+/* Messages (toast.ts): bottom right, above YouTube Music's 72 px player bar, above our menu. */
+.pg-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 88px;
+  z-index: 2147483101;
+  box-sizing: border-box;
+  max-width: min(420px, calc(100vw - 32px));
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid hsla(0, 0%, 100%, 0.14);
+  border-radius: 11px;
+  background-color: hsla(0, 0%, 8%, 0.96);
+  box-shadow: rgba(0, 0, 0, 0.45) 0 12px 32px -10px;
+  color: hsla(0, 0%, 100%, 0.92);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  cursor: default;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pg-toast[hidden] {
+  display: none;
+}
+
+.pg-toast--error {
+  border-color: hsla(4, 90%, 66%, 0.65);
+}
+
+/* The audio button (audioButton.ts), appended to YTM's player bar controls: a 40 px round icon
+   button with a 24 px icon, white at 70 % like YTM's own player bar icons (approximate: verify on
+   the live page). The player bar is dark in either colour scheme. data-state is idle, running,
+   done or error; while running the icon pulses and a badge shows the percent. */
+.pg-audio-btn {
+  --pg-audio-fg: hsla(0, 0%, 100%, 0.7);
+  --pg-audio-fg-hover: #fff;
+  --pg-audio-bg-hover: hsla(0, 0%, 100%, 0.1);
+  --pg-audio-focus: hsla(0, 0%, 100%, 0.7);
+  --pg-audio-done: hsl(142, 55%, 62%);
+  --pg-audio-error: hsl(4, 90%, 66%);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  margin: 0 4px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pg-audio-fg);
+  font: inherit;
+  line-height: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pg-audio-btn:hover {
+  background-color: var(--pg-audio-bg-hover);
+  color: var(--pg-audio-fg-hover);
+}
+
+.pg-audio-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--pg-audio-focus);
+}
+
+.pg-audio-btn svg {
+  display: block;
+  pointer-events: none;
+}
+
+.pg-audio-btn[data-state="running"] {
+  color: var(--pg-audio-fg-hover);
+}
+
+.pg-audio-btn[data-state="running"] svg {
+  animation: pg-busy-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.pg-audio-btn[data-state="done"] {
+  color: var(--pg-audio-done);
+}
+
+.pg-audio-btn[data-state="error"] {
+  color: var(--pg-audio-error);
+}
+
+.pg-audio-btn__badge {
+  position: absolute;
+  right: -4px;
+  bottom: 1px;
+  box-sizing: border-box;
+  min-width: 24px;
+  padding: 1px 3px;
+  border-radius: 6px;
+  background-color: hsl(0, 0%, 16%);
+  box-shadow: 0 0 0 1px hsla(0, 0%, 0%, 0.5);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
+}
+
+.pg-audio-btn__badge[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-audio-btn[data-state="running"] svg {
+    animation: none;
+    opacity: 0.55;
+  }
+}
+
+/* The confirm popover (confirmPopover.ts): the audio button's music-video warning and "Stop this
+   audio download?". In <body> and styled like the lyrics menu (same ground, border, radius, text);
+   confirmPopover.ts sets top/bottom/left. Below the toast, like the menu. */
+.pg-popover {
+  position: fixed;
+  z-index: 2147483100;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
+  margin: 0;
+  padding: 12px;
+  border: 1px solid hsla(0, 0%, 100%, 0.1);
+  border-radius: 11px;
+  background-color: hsla(0, 0%, 8%, 0.96);
+  backdrop-filter: blur(26px);
+  box-shadow:
+    rgba(0, 0, 0, 0.45) 0 12px 32px -10px,
+    inset rgba(255, 255, 255, 0.08) 0 1px 0 0;
+  color: hsla(0, 0%, 100%, 0.86);
+  color-scheme: dark;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pg-popover__text {
+  margin: 0 0 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pg-popover__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pg-popover__btn {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid hsla(0, 0%, 100%, 0.16);
+  border-radius: 7px;
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.35;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    background-color 140ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 140ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pg-popover__btn:hover {
+  background-color: hsla(0, 0%, 100%, 0.09);
+  color: hsla(0, 0%, 100%, 0.98);
+}
+
+.pg-popover__btn:focus-visible {
+  outline: 2px solid hsla(0, 0%, 100%, 0.7);
+  outline-offset: 1px;
+}
+
+.pg-popover__btn--primary {
+  border-color: transparent;
+  background-color: hsla(0, 0%, 100%, 0.9);
+  color: hsl(0, 0%, 8%);
+  font-weight: 600;
+}
+
+.pg-popover__btn--primary:hover {
+  background-color: #fff;
+  color: hsl(0, 0%, 4%);
+}

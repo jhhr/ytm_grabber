@@ -1,0 +1,16 @@
+node_modules/
+dist/
+# Private key for the manifest "key" (scripts/gen-key.mjs); never commit it.
+keys/
+# Real captures with copyrighted lyrics, for local tests only.
+fixtures/local/*
+!fixtures/local/README.md
+# Written by native-host/install.ps1 for this machine (config.json holds local paths).
+native-host/config.json
+native-host/host.bat
+native-host/com.jormki.ytm_grabber.json
+# Written by the native host: the folders it saved audio into (what "reveal" may show), and the
+# temporary file it writes before moving it into place.
+native-host/saved-folders.json
+native-host/saved-folders.json.*.tmp
+__pycache__/

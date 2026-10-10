@@ -1,0 +1,17 @@
+{
+  // Extension code only. Tests and Node tooling are checked by test/tsconfig.json,
+  // which adds Node types: src/ must not see them, since it never runs in Node.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "strict": true,
+    "types": ["chrome"],
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}
